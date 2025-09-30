@@ -4,4 +4,4 @@
 
 ## Approximation of the Ornstein-Uhlenbeck
 
-![](outputs/ornstein_approx.png)
+![](outputs/ornstein_approx_stable.png)
