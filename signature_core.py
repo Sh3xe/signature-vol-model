@@ -55,12 +55,18 @@ class Sig:
 
 		return self
 
-	def __mul__(self, other):
+	def __mul__(self, other, trunc=None):
 		assert self.dim == other.dim, "cannot add two signature of different signatures"
 
-		sig_prod = [ np.zeros(tuple(self.dim for _ in range(n))) for n in range(len(self.data) + len(other.data)) ]
+		if trunc == None:
+			trunc = len(self.data) + len(other.data)
+
+		sig_prod = [ np.zeros(tuple(self.dim for _ in range(n))) for n in range(trunc) ]
+
 		for i in range(len(self.data)):
 			for j in range(len(other.data)):
+				if i+j > trunc:
+					continue
 				sig_prod[i+j] += np.tensordot(self.data[i], other.data[j], axes=0)
 		
 		return Sig(sig_prod)
@@ -78,16 +84,16 @@ class Sig:
 	def shuffle(self, other, trunc=None):
 		assert self.dim == other.dim, "cannot add two signature of different signatures"
 
-		if trunc is not None:
-			raise NotImplementedError("trunc not yet supported")
-
-		max_order = len(self.data) + len(other.data)
+		if trunc == None:
+			trunc = len(self.data) + len(other.data)
 		
-		shuffle_sig = [ np.zeros( tuple(self.dim for _ in range(n)) ) for n in range(max_order+1) ]
+		shuffle_sig = [ np.zeros( tuple(self.dim for _ in range(n)) ) for n in range(trunc+1) ]
 
 		for i in range(len(self.data)):
 			for j in range(len(other.data)):
 				tensor_order = len(self.data[i].shape) + len(other.data[j].shape)
+				if tensor_order > trunc:
+					continue
 				prod_shape = tuple(self.dim for _ in range(tensor_order))
 				
 				# the products will all be a tensor of the same dim and order

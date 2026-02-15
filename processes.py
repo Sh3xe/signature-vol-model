@@ -132,7 +132,8 @@ def compute_mrgbm_signature_times(time_grid, x0, kappa, etha, theta, alpha, lamb
 	for n in range(1,exp_order):
 		rhs.append( make_canonical_element(tuple(0 for _ in range(n)), 2) * np.power(lamb, n))
 	
-	prod = lhs.shuffle(Sig(rhs))
+	prod = lhs.shuffle(Sig(rhs), trunc=exp_order)
+
 	theta_scalar = Sig([np.array(theta)], 2)
 	values = []
 	for t in time_grid:
