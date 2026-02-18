@@ -1,4 +1,6 @@
+from typing_extensions import Self
 import numpy as np
+from copy import deepcopy
 import numpy.random as npr
 from functools import cache
 
@@ -14,7 +16,7 @@ def is_signature(tensor_list):
 	return True
 
 class Sig:
-	def __init__(self, tensor_list: list[np.ndarray], dim=None):
+	def __init__(self, tensor_list: list[np.ndarray], dim=None, dtype=np.float64):
 		assert is_signature(tensor_list), "tensor_list is not a signature"
 
 		if len(tensor_list) >= 2:
@@ -25,6 +27,7 @@ class Sig:
 			assert dim is not None, "could not deduce signature dimension"
 		
 		self.data = tensor_list
+		self.dtype = dtype
 
 	def __add__(self, other):
 		assert self.dim == other.dim, "cannot add two signature of different signatures"
@@ -40,14 +43,14 @@ class Sig:
 
 		# scalar np.array sums to scalar, we need to convert it back to array
 		added_sigs[0] = np.array(added_sigs[0])
-		return added_sigs
+		return Sig(added_sigs, self.dim, dtype=self.dtype)
 
 	def __iadd__(self, other):
 		assert self.dim == other.dim, "cannot add two signature of different signatures"
 		
 		# Extend in-place if necessary
 		if len(other.data) > len(self.data):
-			self.data.extend( [ np.zeros( (self.dim,)*order ) for order in range(len(self.data), len(other.data)+1) ] )
+			self.data.extend( [ np.zeros( (self.dim,)*order, dtype=self.dtype ) for order in range(len(self.data), len(other.data)+1) ] )
 		
 		# Sum ...
 		for i in range(len(other.data)):
@@ -55,13 +58,13 @@ class Sig:
 
 		return self
 
-	def __mul__(self, other, trunc=None):
+	def __matmul__(self, other, trunc=None):
 		assert self.dim == other.dim, "cannot add two signature of different signatures"
 
 		if trunc == None:
 			trunc = len(self.data) + len(other.data)
 
-		sig_prod = [ np.zeros(tuple(self.dim for _ in range(n))) for n in range(trunc) ]
+		sig_prod = [ np.zeros(tuple(self.dim for _ in range(n)), dtype=self.dtype) for n in range(trunc) ]
 
 		for i in range(len(self.data)):
 			for j in range(len(other.data)):
@@ -69,25 +72,43 @@ class Sig:
 					continue
 				sig_prod[i+j] += np.tensordot(self.data[i], other.data[j], axes=0)
 		
-		return Sig(sig_prod)
+		return Sig(sig_prod, self.dim, dtype=self.dtype)
 
-	def order(self):
+	def projection_on(self, indices: tuple[int, ...]) -> Self:
+		if len(indices) == 0:
+			return Sig(deepcopy(self.data), self.dim, dtype=self.dtype)
+		
+		assert self.dim > max(indices), f"Incompatible dimension: the dimension of u is at least {max(indices)} but the signature has an inner dimension of {self.dim}"
+
+		res = [ np.zeros( (self.dim,)*i, dtype=self.dtype ) for i in range(len(self.data)-len(indices)) ]
+
+		for i in range(len(self.data)-len(indices)):
+			for index in np.ndindex( (self.dim,) * i ):
+				tensor_prod_index = tuple(index) + indices
+				res[i][index] = self.data[len(tensor_prod_index)][tensor_prod_index]
+
+		return Sig(res, self.dim, dtype=self.dtype)
+
+	def order(self) -> int:
 		return len(self.data)
 
-	def __len__(self):
+	def __len__(self) -> int:
 		return len(self.data)
 
-	def __getitem__(self, index):
+	def __getitem__(self, index: int) -> np.ndarray:
 		assert index >= 0, "Index of a signature must be positive"
 		return self.data[index] if index < len(self.data) else np.zeros( (self.dim,)*index )
 
-	def shuffle(self, other, trunc=None):
+	def copy(self):
+		return Sig(deepcopy(self.data), self.dim, dtype=self.dtype)
+
+	def shuffle(self, other: Self, trunc: int=None) -> Self:
 		assert self.dim == other.dim, "cannot add two signature of different signatures"
 
 		if trunc == None:
 			trunc = len(self.data) + len(other.data)
 		
-		shuffle_sig = [ np.zeros( tuple(self.dim for _ in range(n)) ) for n in range(trunc+1) ]
+		shuffle_sig = [ np.zeros( tuple(self.dim for _ in range(n)), dtype=self.dtype ) for n in range(trunc+1) ]
 
 		for i in range(len(self.data)):
 			for j in range(len(other.data)):
@@ -99,10 +120,17 @@ class Sig:
 				# the products will all be a tensor of the same dim and order
 				for self_index in np.ndindex(self.data[i].shape):
 					for other_index in np.ndindex(other.data[j].shape):
-						el = self.data[i][self_index] * other.data[j][other_index] * shuffle_product_basis(tuple(self_index), tuple(other_index), self.dim)
+						el = self.data[i][self_index] * other.data[j][other_index] * shuffle_product_basis(tuple(self_index), tuple(other_index), self.dim).astype(self.dtype)
 						shuffle_sig[len(prod_shape)] += el
 
-		return Sig(shuffle_sig)
+		return Sig(shuffle_sig, self.dim, dtype=self.dtype)
+
+	def __mul__(self, scalar):
+		out_sig = [x * scalar for x in self.data]
+		return Sig(out_sig, self.dim, self.dtype)
+
+	def __rmul__(self, scalar):
+		return self.__mul__(scalar)
 
 @cache
 def make_canonical_element(indices, n):
@@ -136,12 +164,6 @@ def shuffle_product_basis(left: tuple[int], right: tuple[int], n: int) -> list[n
 		np.tensordot(sub_right, make_canonical_element( (last_right,), n), axes=0)
 	)
 
-def scalar_prod(sig: Sig, scalar):
-		out_sig = []
-		for i in range(len(sig.data)):
-			out_sig.append(sig.data[i] * scalar)
-		return Sig(out_sig)
-
 def shuffle_product(left: np.ndarray, right: np.ndarray) -> list[np.ndarray]:
 	# Special case: scalar
 	if len(left.shape) == 0 and len(right.shape)  == 0:
@@ -157,10 +179,10 @@ def shuffle_product(left: np.ndarray, right: np.ndarray) -> list[np.ndarray]:
 	tensor_order = len(left.shape) + len(right.shape)
 
 	# the products will all be a tensor of the same dim and order
-	product_tensor = np.zeros( tuple(dim for _ in range(tensor_order)) )
+	product_tensor = np.zeros( tuple(dim for _ in range(tensor_order)), dtype=left.dtype )
 	for self_index in np.ndindex(left.shape):
 		for other_index in np.ndindex(right.shape):
-			el = left[self_index] * right[other_index] * shuffle_product_basis(tuple(self_index), tuple(other_index), dim)
+			el = left[self_index] * right[other_index] * shuffle_product_basis(tuple(self_index), tuple(other_index), dim).astype(left.dtype)
 			product_tensor += el
 
 	return product_tensor

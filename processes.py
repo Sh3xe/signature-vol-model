@@ -46,7 +46,7 @@ def compute_ornstein_uhlenbeck_signature(x0, kappa, etha, theta, exp_order=5):
 	right = [np.array(1.0)]
 	for n in range(1,exp_order):
 		right.append( make_canonical_element(tuple(0 for _ in range(n)), 2) * np.power(-kappa, n))
-	return left * Sig(right, 2)
+	return left @ Sig(right, 2)
 
 def compute_ornstein_uhlenbeck_signature_time(t, x0, kappa, etha, theta, exp_order=5):
 	assert exp_order >= 2
@@ -59,7 +59,7 @@ def compute_ornstein_uhlenbeck_signature_time(t, x0, kappa, etha, theta, exp_ord
 	# right hand side of the decomposition: etha 2
 	rhs = Sig([np.zeros( () ), np.array([0.0, etha*np.exp(-kappa*t)]) ])
 	# final product
-	return scalar_part + (Sig(expon) * rhs)
+	return scalar_part + (Sig(expon) @ rhs)
 
 def generate_naive_ornstein_sig(time_grid, brownians, brownian_sig, x0, kappa, etha, theta, max_sig_order):
 	ornsteins = generate_ornstein_uhlenbeck(time_grid.min(), time_grid.max(), brownians, x0, kappa, etha, theta)
@@ -86,7 +86,7 @@ def generate_stable_ornstein_sig(time_grid, brownians, brownian_sig, x0, kappa, 
 		uhlenbeck_process_approx = np.zeros(time_grid.shape[0])
 		for i in range(time_grid.shape[0]):
 			brownian_sig_time = [b[..., i] for b in brownian_sig]
-			uhlenbeck_process_approx[i] = bracket(uhlenbeck_sig_time[i][:sig_order+1], brownian_sig_time)
+			uhlenbeck_process_approx[i] = bracket(uhlenbeck_sig_time[i].data[:sig_order+1], brownian_sig_time)
 		ornstein_approx.append(uhlenbeck_process_approx)
 
 	return (ornsteins, ornstein_approx)
@@ -110,7 +110,7 @@ def compute_mrgbm_signature(x0, kappa, etha, theta, alpha, exp_order=5):
 		curr_num_sig[len(curr_num.shape)] = curr_num / curr_den
 		rhs += Sig(curr_num_sig)
 
-	return lhs * rhs	
+	return lhs @ rhs	
 
 def generate_naive_mrgbm_sig(time_grid, brownians, brownian_sig, x0, kappa, etha, theta, alpha, max_sig_order):
 	mrgbms = generate_mrgbm(time_grid.min(), time_grid.max(), brownians, x0, kappa, etha, theta, alpha)
@@ -137,7 +137,7 @@ def compute_mrgbm_signature_times(time_grid, x0, kappa, etha, theta, alpha, lamb
 	theta_scalar = Sig([np.array(theta)], 2)
 	values = []
 	for t in time_grid:
-		rest = scalar_prod( prod,  np.exp(-lamb*t) )
+		rest = prod * np.exp(-lamb*t)
 		rest += theta_scalar
 		values.append(rest)
 
