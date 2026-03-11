@@ -74,6 +74,10 @@ class Sig:
 		
 		return Sig(sig_prod, self.dim, dtype=self.dtype)
 
+	def truncate(self, trunc: int) -> Self:
+		self.data = self.data[:trunc]
+		return self
+
 	def projection_on(self, indices: tuple[int, ...]) -> Self:
 		if len(indices) == 0:
 			return Sig(deepcopy(self.data), self.dim, dtype=self.dtype)
