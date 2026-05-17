@@ -1,0 +1,3 @@
+[submodule "signature_core/library/extern/pybind11"]
+	path = signature_core/library/extern/pybind11
+	url = https://github.com/pybind/pybind11.git
