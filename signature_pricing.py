@@ -1,7 +1,6 @@
 from signature_core import *
 import numpy as np
 import scipy
-import matplotlib.pyplot as plt
 
 def psi_derivative(u: float, t: float, psi: Sig, model_sig: Sig, model_sig_squared: Sig, rho: float, trunc: int) -> Sig:
 	psi_1 = psi.projection_on( (0,) )

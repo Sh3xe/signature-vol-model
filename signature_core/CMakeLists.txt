@@ -1,10 +1,11 @@
 cmake_minimum_required(VERSION 3.22)
-project(signature_core_cpp LANGUAGES CXX)
+project(testbench LANGUAGES CXX)
 
-add_subdirectory(extern/pybind11)
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-pybind11_add_module(signature_core_cpp signatures.cpp)
+add_subdirectory(library)
 
-target_include_directories(signature_core_cpp PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/extern/pybind11/include)
+add_executable(testbench testbench.cpp)
 
-install(TARGETS signature_core_cpp DESTINATION ${CMAKE_CURRENT_SOURCE_DIR}/lib RENAME signature_core_cpp.so)
+target_link_libraries(testbench PRIVATE signature_core)

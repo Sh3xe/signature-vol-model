@@ -1,0 +1,10 @@
+# Ignore local build directories
+/[Bb]uild/
+
+# Ignore IDE specific files if generated locally
+/.vscode/
+/.idea/
+
+# Ignore Python artifacts if running inline tests
+/__pycache__/
+*.pyc
