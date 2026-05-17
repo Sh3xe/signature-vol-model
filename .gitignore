@@ -3,3 +3,5 @@ __pycache__
 signature_core/build
 signature_core/lib/*
 .vscode
+build
+*.so
