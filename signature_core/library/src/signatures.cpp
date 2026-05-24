@@ -13,7 +13,7 @@ Signature::Signature(size_t order, cdouble fill_value):
     m_data.resize(n_elements, fill_value);
 }
 
-cdouble Signature::get_element( const coords &coordinates )
+cdouble Signature::get_element( const coords &coordinates ) const
 {
     size_t coor_size = std::min(coordinates.size(), m_order);
     size_t el_id = (1 << coor_size )-1;
@@ -48,6 +48,20 @@ Signature &Signature::operator+=(const Signature &other)
     return *this;
 }
 
+Signature &Signature::operator-=(const Signature &other)
+{
+    for(size_t i = 0; i < std::min(m_data.size(), other.m_data.size()); ++i)
+        m_data[i] -= other.m_data[i];
+    return *this;
+}
+
+Signature &Signature::operator/=(cdouble constant)
+{
+    for(size_t i = 0; i < m_data.size(); ++i)
+        m_data[i] /= constant;
+    return *this;
+}
+
 Signature &Signature::operator*=(cdouble constant)
 {
     for(size_t i = 0; i < m_data.size(); ++i)
@@ -55,12 +69,31 @@ Signature &Signature::operator*=(cdouble constant)
     return *this;
 }
 
-Signature &Signature::projection_on( const coords &coordinates )
-{
-    return *this;
-}
+// Signature projection_on( const Signature &sig, const coords &coordinates )
+// {
+//     Signature res( std::max( static_cast<size_t>(0), sig.m_data.size() - coordinates.size() ), 0.0);
 
-Signature shuffle(const Signature &left, const Signature &right, size_t truncation)
+//     if( coordinates.size() == 0 )
+//         return res;
+    
+//     // assert self.dim > max(indices), f"Incompatible dimension: the dimension of u is at least {max(indices)} but the signature has an inner dimension of {self.dim}"
+
+//     // res = [ np.zeros( (self.dim,)*i, dtype=self.dtype ) for i in range(len(self.data)-len(indices)) ]
+
+    
+
+// //     for i in range(len(self.data)-len(indices)):
+// //         for index in np.ndindex( (self.dim,) * i ):
+// //             tensor_prod_index = tuple(index) + indices
+// //             res[i][index] = self.data[len(tensor_prod_index)][tensor_prod_index]
+
+//     return res;
+// }
+
+template <typename ShuffleBasisAccessor>
+Signature shuffle_base(
+    const Signature &left, const Signature &right, size_t truncation,
+    ShuffleBasisAccessor &&shuffle_product_basis_acc)
 {
     Signature out(truncation, 0.0);
 
@@ -77,23 +110,65 @@ Signature shuffle(const Signature &left, const Signature &right, size_t truncati
             
             // Iterate over all pairs of basis
             for(size_t jl = 0; jl < offset_l+1; ++jl)
-            for(size_t jr = 0; jr < offset_r+1; ++jr)
             {
-                // Shuffle product is linear, "shuffle_product_basis" computes this product on a basis,
-                // we call it on all possible basis, and multiply it be their value
-                // the last few parameters of "shuffle_product_basis" (out, constant, begin_index) allows us
-                // to directly write into a signature without allocating any memory
-                shuffle_product_basis(
-                    jl, il,
-                    jr, ir,
-                    out.m_data, offset_out,
-                    left.m_data[offset_l+jl]*right.m_data[offset_r+jr]
-                );
+                cdouble left_val = left.m_data[offset_l+jl];
+                if (left_val == 0.0) continue;
+
+                for(size_t jr = 0; jr < offset_r+1; ++jr)
+                {
+                    cdouble right_val = right.m_data[offset_r+jr];
+                    if (right_val == 0.0) continue;
+
+                    // Shuffle product is linear, "shuffle_product_basis" computes this product on a basis,
+                    // we call it on all possible basis, and multiply it be their value
+                    // the last few parameters of "shuffle_product_basis" (out, constant, begin_index) allows us
+                    // to directly write into a signature without allocating any memory
+                    shuffle_product_basis_acc(
+                        jl, il,
+                        jr, ir,
+                        out.m_data, offset_out,
+                        left_val*right_val
+                    );
+                }
             }
         }
     }
 
     return out;
+}
+
+Signature shuffle(const Signature &left, const Signature &right, size_t truncation, const ShuffleCache &cache)
+{
+    auto accessor = [&](
+        uint32_t jl, uint32_t il,
+        uint32_t jr, uint32_t ir,
+        std::vector<cdouble> &output,
+        uint32_t offset_out,
+        cdouble constant ) {
+        auto &res = cache.get( jl, il, jr, ir);
+        for(size_t i = 0; i < offset_out+1; ++i)
+            output[offset_out+i] += res[i]*constant;
+    };
+
+    return shuffle_base(left, right, truncation, accessor);
+}
+
+Signature shuffle(const Signature &left, const Signature &right, size_t truncation)
+{
+    auto accessor = []( uint32_t jl, uint32_t il,
+                        uint32_t jr, uint32_t ir,
+                        std::vector<cdouble> &output,
+                        uint32_t offset_out,
+                        cdouble constant ) {
+        shuffle_product_basis(
+            jl, il,
+            jr, ir,
+            output, offset_out,
+            constant
+        );
+    };
+
+    return shuffle_base(left, right, truncation, accessor);
 }
 
 Signature matmul(const Signature &left, const Signature &right, size_t truncation)

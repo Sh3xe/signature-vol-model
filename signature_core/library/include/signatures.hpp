@@ -1,11 +1,13 @@
 #pragma once
 
+#include "utilities.hpp"
+
 #include <cstdint>
 #include <vector>
-#include <complex>
 #include <unordered_map>
 
-using cdouble = std::complex<double>;
+struct ShuffleCache;
+
 using coords = std::vector<size_t>;
 
 // Assumed dimension: 2
@@ -15,19 +17,38 @@ public:
     Signature(size_t order, cdouble fill_value = 0.0);
 
     constexpr size_t order() const { return m_order; }
-    cdouble get_element( const coords &coordinates );
+
+    cdouble get_element( uint32_t coordinates, uint32_t order ) const
+    {
+        size_t shift = (1<<order)-1 + coordinates;
+
+        if( shift > m_data.size() ) return 0.0;
+
+        return m_data[shift];
+    }
+
+    void set_element( uint32_t coordinates, uint32_t order, cdouble el )
+    {
+        size_t shift = (1<<order)-1 + coordinates;
+
+        if( shift > m_data.size() ) return;
+
+        m_data[shift] = el;
+    }
+
+    cdouble get_element( const coords &coordinates ) const;
+
     void set_element( const coords &coordinates, cdouble el );
 
     Signature &operator+=(const Signature &other);
+
+    Signature &operator-=(const Signature &other);
+
     Signature &operator*=(cdouble constant);
 
-    Signature &projection_on( const coords &coordinates );
+    Signature &operator/=(cdouble constant);
 
-    friend Signature matmul(const Signature &left, const Signature &right, size_t truncation);
-    friend std::ostream &operator<<(std::ostream &os, const Signature &sig);
-    friend Signature shuffle(const Signature &left, const Signature &right, size_t truncation);
-
-private:
+public:
     size_t m_order;
     std::vector<cdouble> m_data;
 };
@@ -78,6 +99,8 @@ ShuffleCache compute_shuffle_cache(uint32_t truncation);
 
 Signature shuffle(const Signature &left, const Signature &right, size_t truncation);
 
+Signature shuffle(const Signature &left, const Signature &right, size_t truncation, const ShuffleCache &cache);
+
 Signature matmul(const Signature &left, const Signature &right, size_t truncation);
 
 /**
@@ -100,6 +123,9 @@ void shuffle_product_basis(
     uint32_t right, uint32_t order_right,
     std::vector<cdouble> &out, uint32_t begin_index,
     cdouble constant = 1.0 );
+
+
+// Signature projection_on( const Signature &sig, const coords &coordinates );
 
 // def signature( x: np.ndarray, trunc: int ):
 // def bracket(sig_left, sig_right):

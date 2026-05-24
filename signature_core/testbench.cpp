@@ -97,6 +97,27 @@ bool check_accessors()
         return false;
     }
 
+    if( sig2.get_element({0}) != sig2.get_element(0b0, 1) || sig2.get_element({1}) != sig2.get_element(0b1, 1)) {
+        std::cout << "binary & vector api are not consistent with each other" << std::endl;
+        std::cout << sig2.get_element({0}) << " "  << sig2.get_element({1}) << std::endl;
+        std::cout << "VERSUS" << std::endl;
+        std::cout << sig2.get_element(0b0, 1) << " "  << sig2.get_element(0b1, 1) << std::endl;
+        return false;
+    }
+
+    if( 
+        sig1.get_element({0, 0}) != sig1.get_element(0b00, 2) || sig1.get_element({0, 1}) != sig1.get_element(0b01, 2) ||
+        sig1.get_element({1, 0}) != sig1.get_element(0b10, 2) || sig1.get_element({1, 1}) != sig1.get_element(0b11, 2)
+    ) {
+        std::cout << "binary & vector api are not consistent with each other" << std::endl;
+        std::cout << sig1.get_element({0, 0}) << " " << sig1.get_element({0, 1}) << std::endl;
+        std::cout << sig1.get_element({1, 0}) << " " << sig1.get_element({1, 1}) << std::endl;
+        std::cout << "VERSUS" << std::endl;
+        std::cout << sig1.get_element(0b00, 2) << " " << sig1.get_element(0b01, 2) << std::endl;
+        std::cout << sig1.get_element(0b10, 2) << " " << sig1.get_element(0b11, 2) << std::endl;
+        return false;
+    }
+
     return true;
 }
 
@@ -177,7 +198,7 @@ void print_cache_perf()
 
     time_begin = std::chrono::system_clock::now();
 
-    ShuffleCache cache = compute_shuffle_cache(12);
+    ShuffleCache cache = compute_shuffle_cache(10);
 
     time_end = std::chrono::system_clock::now();
 
@@ -207,6 +228,58 @@ void print_cache_perf()
         << "ms" << std::endl;
 }
 
+bool check_shuffle_product()
+{
+    // 1. Recreate the verified test scenario
+    Signature left(1, 0.0);
+    left.set_element(0b0, 0, 1.24);
+    left.set_element(0b0, 1, -10.0 );
+    left.set_element(0b1, 1, 1.0 );
+    
+    Signature right(2, 0.0);
+    right.set_element(0b00, 2, -2.5);
+    right.set_element(0b11, 2, -2.5);
+
+    // Compute via the baseline shuffle implementation
+    Signature res1 = shuffle(left, right, left.order() + right.order());
+
+    // Compute via the cached shuffle implementation
+    ShuffleCache cache = compute_shuffle_cache(10);
+    Signature res2 = shuffle(left, right, left.order() + right.order(), cache);
+
+    // 2. Validate Order 0, 1, and 2 element-by-element for both results
+    // Expected Order 0: [ (0,0) ]
+    // Expected Order 1: [ (0,0), (0,0) ]
+    // Expected Order 2: [[ (-3.1,0), (0,0) ], [ (0,0), (-3.1,0) ]]
+    auto check_low_orders = [](Signature& res) -> bool {
+        if (res.get_element(0b0, 0).real() != 0.0 ||
+            res.get_element(0b0, 1).real() != 0.0 ||
+            res.get_element(0b1, 1).real() != 0.0 ||
+            std::abs(res.get_element(0b00, 2).real() - (-3.1)) > 1e-6 ||
+            res.get_element(0b01, 2).real() != 0.0 ||
+            res.get_element(0b10, 2).real() != 0.0 ||
+            std::abs(res.get_element(0b11, 2).real() - (-3.1)) > 1e-6) 
+        {
+            return false;
+        }
+        return true;
+    };
+
+    if (!check_low_orders(res1)) {
+        std::cout << "Baseline shuffle: low-order components are broken" << std::endl;
+        std::cout << res1 << std::endl;
+        return false;
+    }
+
+    if (!check_low_orders(res2)) {
+        std::cout << "Cached shuffle: low-order components are broken" << std::endl;
+        std::cout << res2 << std::endl;
+        return false;
+    }
+
+    return true;
+}
+
 int main()
 {
     if( check_accessors() )
@@ -218,6 +291,13 @@ int main()
     {
         std::cout << "Matmul OK" << std::endl;
     }
+
+    if( check_shuffle_product() )
+    {
+        std::cout << "Shuffle product OK" << std::endl;
+    }
+
+    print_cache_perf();
 
     return 1;
 }
