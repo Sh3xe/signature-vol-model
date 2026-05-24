@@ -5,3 +5,4 @@ signature_core/lib/*
 .vscode
 build
 *.so
+test*

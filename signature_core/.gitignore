@@ -8,3 +8,5 @@
 # Ignore Python artifacts if running inline tests
 /__pycache__/
 *.pyc
+
+signature_core_cpp.so

@@ -137,7 +137,7 @@ Signature shuffle_base(
     return out;
 }
 
-Signature shuffle(const Signature &left, const Signature &right, size_t truncation, const ShuffleCache &cache)
+Signature shuffle(const Signature &left, const Signature &right, size_t truncation, const std::shared_ptr<ShuffleCache> &cache)
 {
     auto accessor = [&](
         uint32_t jl, uint32_t il,
@@ -145,7 +145,7 @@ Signature shuffle(const Signature &left, const Signature &right, size_t truncati
         std::vector<cdouble> &output,
         uint32_t offset_out,
         cdouble constant ) {
-        auto &res = cache.get( jl, il, jr, ir);
+        auto &res = cache->get( jl, il, jr, ir);
         for(size_t i = 0; i < offset_out+1; ++i)
             output[offset_out+i] += res[i]*constant;
     };
@@ -237,6 +237,21 @@ void shuffle_product_basis_rec(
         out, begin_index, constant );
 }
 
+/**
+ * @brief Computes the Shuffle product between two basis tensors of dimension 2 and arbitrary order.
+ *
+ * Example: shuffle(12212, 1211) produces an output tensor of order 5+3=8.
+ *
+ * Basis tensors are represented as integers where each digit corresponds to a basis element.
+ * For instance, the tensor 1221 is represented as left=0b0110 with order_left=4.
+ *
+ * @param left Integer representation of the left basis tensor.
+ * @param order_left Order of the left basis tensor.
+ * @param right Integer representation of the right basis tensor.
+ * @param order_right Order of the right basis tensor.
+ * @param[out] out Output vector. Must have at least 2^(order_left+order_right) elements.
+ * @param begin_index instead of writing the result in out[...], will write it to out[begin_index + ...]
+ **/
 void shuffle_product_basis(
     uint32_t left, uint32_t order_left,
     uint32_t right, uint32_t order_right,
@@ -246,11 +261,11 @@ void shuffle_product_basis(
     shuffle_product_basis_rec(left, order_left, right, order_right, 0b0, 0, out, begin_index, constant);
 }
 
-ShuffleCache compute_shuffle_cache(uint32_t truncation)
+std::shared_ptr<ShuffleCache> compute_shuffle_cache(uint32_t truncation)
 {
-    ShuffleCache cache;
-    cache.truncation = truncation;
-    cache.memory_usage = 0;
+    ShuffleCache *cache = new ShuffleCache;
+    cache->truncation = truncation;
+    cache->memory_usage = 0;
 
     for(uint32_t order_i = 0; order_i <= truncation; ++order_i)
     for(uint32_t order_j = 0; order_j <= truncation-order_i; ++order_j)
@@ -263,10 +278,40 @@ ShuffleCache compute_shuffle_cache(uint32_t truncation)
             shuffle_product_basis(i, order_i, j, order_j, output, 0, 1.0);
 
             uint64_t key = ShuffleCache::make_key(i, order_i, j, order_j);
-            cache.memory_usage += output.size() * sizeof(cdouble);
-            cache.cache[key] = std::move(output);
+            cache->memory_usage += output.size() * sizeof(cdouble);
+            cache->cache[key] = std::move(output);
         }
     }
 
-    return cache;
+    return std::shared_ptr<ShuffleCache>(cache);
+}
+
+cdouble bracket(const Signature &left, const Signature &right)
+{
+    cdouble total = 0.0;
+
+    for(size_t i = 0; i < std::min(left.m_data.size(), right.m_data.size()); ++i)
+        total += left.m_data[i]*right.m_data[i];
+
+    return total;
+}
+
+Signature projection_on( const Signature &sig, uint32_t coordinates, uint32_t coord_order )
+{
+    Signature out ( std::max( static_cast<size_t>(0), sig.order() - coord_order), 0.0);
+
+    size_t cur_order = 0;
+    for(size_t i = 0; i < out.m_data.size(); ++i)
+    {
+        // which tensor are we updating?
+        // i = 0 -> order 0; i=1.2 -> order 1; i=3..6 -> order 1; i=2^n-1...2^(n+1)-2 -> order n
+        bool need_order_update = i == ((1 << (cur_order+1)) - 1);
+        if( need_order_update ) ++cur_order;
+
+        // We "concatenate" the two coords: so 0b11001 and 0b001 will be 0b[11001][001]
+        size_t shifted_i = (coordinates << cur_order) + i - (1<<cur_order) + 1;
+        out.m_data[i] = sig.get_element(shifted_i, cur_order+coord_order);
+    }
+
+    return out;
 }

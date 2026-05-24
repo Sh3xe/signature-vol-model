@@ -4,6 +4,7 @@
 
 #include <cstdint>
 #include <vector>
+#include <memory>
 #include <unordered_map>
 
 struct ShuffleCache;
@@ -18,18 +19,18 @@ public:
 
     constexpr size_t order() const { return m_order; }
 
-    cdouble get_element( uint32_t coordinates, uint32_t order ) const
+    cdouble get_element( uint32_t coordinates, uint32_t coord_order ) const
     {
-        size_t shift = (1<<order)-1 + coordinates;
+        size_t shift = (1<<coord_order)-1 + coordinates;
 
         if( shift > m_data.size() ) return 0.0;
 
         return m_data[shift];
     }
 
-    void set_element( uint32_t coordinates, uint32_t order, cdouble el )
+    void set_element( uint32_t coordinates, uint32_t coord_order, cdouble el )
     {
-        size_t shift = (1<<order)-1 + coordinates;
+        size_t shift = (1<<coord_order)-1 + coordinates;
 
         if( shift > m_data.size() ) return;
 
@@ -95,13 +96,20 @@ struct ShuffleCache
     }
 };
 
-ShuffleCache compute_shuffle_cache(uint32_t truncation);
+std::shared_ptr<ShuffleCache> compute_shuffle_cache(uint32_t truncation);
 
 Signature shuffle(const Signature &left, const Signature &right, size_t truncation);
 
-Signature shuffle(const Signature &left, const Signature &right, size_t truncation, const ShuffleCache &cache);
+Signature shuffle(const Signature &left, const Signature &right, size_t truncation, const std::shared_ptr<ShuffleCache> &cache);
 
 Signature matmul(const Signature &left, const Signature &right, size_t truncation);
+
+cdouble bracket(const Signature &left, const Signature &right);
+
+Signature projection_on( const Signature &sig, uint32_t coordinates, uint32_t coord_order );
+
+// def signature( x: np.ndarray, trunc: int ):
+// def bracket_with_process(cst_sig, process_sig, max_order = None):
 
 /**
  * @brief Computes the Shuffle product between two basis tensors of dimension 2 and arbitrary order.
@@ -122,11 +130,4 @@ void shuffle_product_basis(
     uint32_t left, uint32_t order_left,
     uint32_t right, uint32_t order_right,
     std::vector<cdouble> &out, uint32_t begin_index,
-    cdouble constant = 1.0 );
-
-
-// Signature projection_on( const Signature &sig, const coords &coordinates );
-
-// def signature( x: np.ndarray, trunc: int ):
-// def bracket(sig_left, sig_right):
-// def bracket_with_process(cst_sig, process_sig, max_order = None):
+    cdouble constant );

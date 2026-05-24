@@ -198,7 +198,7 @@ void print_cache_perf()
 
     time_begin = std::chrono::system_clock::now();
 
-    ShuffleCache cache = compute_shuffle_cache(10);
+    auto cache = compute_shuffle_cache(10);
 
     time_end = std::chrono::system_clock::now();
 
@@ -206,18 +206,18 @@ void print_cache_perf()
         // output the number of ms
         << std::chrono::duration<float, std::ratio<1,1000>>(time_end - time_begin).count() 
         << "ms" << std::endl;
-    std::cout << "Cache size : " << cache.memory_usage << std::endl;
+    std::cout << "Cache size : " << cache->memory_usage << std::endl;
 
     time_begin = std::chrono::system_clock::now();
 
-    auto &vec = cache.get(0b01, 2, 0b01, 2);
+    auto &vec = cache->get(0b01, 2, 0b01, 2);
     for(uint32_t order_i = 0; order_i < max_order; ++order_i)
     for(uint32_t order_j = 0; order_j < max_order-order_i; ++order_j)
     {
         for(uint32_t i = 0; i < (1 << order_i); ++i )
         for(uint32_t j = 0; j < (1 << order_j); ++j )
         {
-            cache.get(i, order_i, j, order_j);
+            cache->get(i, order_i, j, order_j);
         }
     }
 
@@ -230,7 +230,6 @@ void print_cache_perf()
 
 bool check_shuffle_product()
 {
-    // 1. Recreate the verified test scenario
     Signature left(1, 0.0);
     left.set_element(0b0, 0, 1.24);
     left.set_element(0b0, 1, -10.0 );
@@ -244,7 +243,7 @@ bool check_shuffle_product()
     Signature res1 = shuffle(left, right, left.order() + right.order());
 
     // Compute via the cached shuffle implementation
-    ShuffleCache cache = compute_shuffle_cache(10);
+    auto cache = compute_shuffle_cache(10);
     Signature res2 = shuffle(left, right, left.order() + right.order(), cache);
 
     // 2. Validate Order 0, 1, and 2 element-by-element for both results
@@ -280,6 +279,40 @@ bool check_shuffle_product()
     return true;
 }
 
+bool check_projection()
+{
+    Signature left(1, 0.0);
+    left.set_element(0b0, 0, 1.24);
+    left.set_element(0b0, 1, -10.0 );
+    left.set_element(0b1, 1, 1.0 );
+    
+    Signature right(2, 0.0);
+    right.set_element(0b00, 2, -2.5);
+    right.set_element(0b11, 2, -2.5);
+
+    Signature res = shuffle(left, right, left.order() + right.order());
+
+    Signature projected_res = projection_on(res, 0b1, 1);
+
+    if( !(
+        projected_res.get_element(0b0, 0) == res.get_element(0b1, 1) &&
+
+        projected_res.get_element(0b0, 1) == res.get_element(0b10, 2) &&
+        projected_res.get_element(0b1, 1) == res.get_element(0b11, 2) &&
+
+        projected_res.get_element(0b00, 2) == res.get_element(0b100, 3) &&
+        projected_res.get_element(0b01, 2) == res.get_element(0b101, 3) &&
+        projected_res.get_element(0b10, 2) == res.get_element(0b110, 3) &&
+        projected_res.get_element(0b11, 2) == res.get_element(0b111, 3)
+    ))
+    {
+        std::cout << "Project does not work : " << projected_res << std::endl;
+        return false;
+    }
+
+    return true;
+}
+
 int main()
 {
     if( check_accessors() )
@@ -298,6 +331,11 @@ int main()
     }
 
     print_cache_perf();
+
+    if( check_projection() )
+    {
+        std::cout << "Projection OK" << std::endl;
+    }
 
     return 1;
 }
