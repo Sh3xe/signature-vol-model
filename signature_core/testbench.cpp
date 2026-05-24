@@ -1,5 +1,6 @@
 #include "signatures.hpp"
 #include <iostream>
+#include <chrono>
 
 using namespace std::complex_literals;
 
@@ -161,6 +162,27 @@ int main()
         std::cout << "Matmul OK" << std::endl;
     }
 
+    auto time_begin = std::chrono::system_clock::now();
+
+    // output for the shuffle product 12 [shuffle] 12
+    uint32_t max_order = 10;
+    std::vector<cdouble> output ( (2<<max_order) , 0.0);
+    for(uint32_t order_i = 0; order_i < max_order; ++order_i)
+    for(uint32_t order_j = 0; order_j < max_order-order_i; ++order_j)
+    {
+        for(uint32_t i = 0; i < (2 << order_i); ++i )
+        for(uint32_t j = 0; j < (2 << order_j); ++j )
+        {
+            shuffle_product_basis(i, order_i, j, order_j, output);
+        }
+    }
+
+    auto time_end = std::chrono::system_clock::now();
+
+    std::cout << "Time : "
+        // output the number of ms
+        << std::chrono::duration<float, std::ratio<1,1000>>(time_end - time_begin).count() 
+        << "ms" << std::endl;
 
     return 1;
 }

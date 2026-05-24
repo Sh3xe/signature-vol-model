@@ -1,4 +1,7 @@
 #include "signatures.hpp"
+#include <array>
+#include <iostream>
+#include <bitset>
 
 Signature::Signature(size_t order, cdouble fill_value):
     m_order(order)
@@ -91,4 +94,34 @@ Signature matmul(const Signature &left, const Signature &right, size_t truncatio
     }
 
     return out;
+}
+
+void shuffle_product_basis_rec(uint32_t left, uint32_t order_left, uint32_t right, uint32_t order_right, uint32_t curr_out, uint32_t cur_out_order, std::vector<cdouble> &out)
+{
+    // write to the output at the proper index
+    if(order_left == 0)
+    {
+        uint32_t index = (right << cur_out_order) + curr_out;
+        out[index] += 1;
+        return;
+    }
+
+    // write to the output at the proper index
+    if(order_right == 0)
+    {
+        uint32_t index = (left << cur_out_order) + curr_out;
+        out[index] += 1;
+        return;
+    }
+
+    // Break [left]
+    shuffle_product_basis_rec( left >> 1, order_left-1, right, order_right, ((left % 2) << cur_out_order) + curr_out, cur_out_order+1, out );
+    
+    // expand right
+    shuffle_product_basis_rec( left, order_left, right >> 1, order_right-1, ((right % 2) << cur_out_order) + curr_out, cur_out_order+1, out );
+}
+
+void shuffle_product_basis(uint32_t left, uint32_t order_left, uint32_t right, uint32_t order_right, std::vector<cdouble> &out)
+{
+    shuffle_product_basis_rec(left, order_left, right, order_right, 0b0, 0, out);
 }
