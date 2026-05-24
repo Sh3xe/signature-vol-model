@@ -1,6 +1,7 @@
 #include "signatures.hpp"
 #include <iostream>
 #include <chrono>
+#include <bitset>
 
 using namespace std::complex_literals;
 
@@ -150,6 +151,62 @@ bool check_matmul()
     return true;
 }
 
+void print_cache_perf()
+{
+    auto time_begin = std::chrono::system_clock::now();
+
+    // output for the shuffle product 12 [shuffle] 12
+    uint32_t max_order = 10;
+    std::vector<cdouble> output ( (1<<max_order) , 0.0);
+    for(uint32_t order_i = 0; order_i < max_order; ++order_i)
+    for(uint32_t order_j = 0; order_j < max_order-order_i; ++order_j)
+    {
+        for(uint32_t i = 0; i < (1 << order_i); ++i )
+        for(uint32_t j = 0; j < (1 << order_j); ++j )
+        {
+            shuffle_product_basis(i, order_i, j, order_j, output, 0, 1.0);
+        }
+    }
+
+    auto time_end = std::chrono::system_clock::now();
+
+    std::cout << "Time to compute all possibilities: "
+        // output the number of ms
+        << std::chrono::duration<float, std::ratio<1,1000>>(time_end - time_begin).count() 
+        << "ms" << std::endl;
+
+    time_begin = std::chrono::system_clock::now();
+
+    ShuffleCache cache = compute_shuffle_cache(12);
+
+    time_end = std::chrono::system_clock::now();
+
+    std::cout << "Time to compute the cache: "
+        // output the number of ms
+        << std::chrono::duration<float, std::ratio<1,1000>>(time_end - time_begin).count() 
+        << "ms" << std::endl;
+    std::cout << "Cache size : " << cache.memory_usage << std::endl;
+
+    time_begin = std::chrono::system_clock::now();
+
+    auto &vec = cache.get(0b01, 2, 0b01, 2);
+    for(uint32_t order_i = 0; order_i < max_order; ++order_i)
+    for(uint32_t order_j = 0; order_j < max_order-order_i; ++order_j)
+    {
+        for(uint32_t i = 0; i < (1 << order_i); ++i )
+        for(uint32_t j = 0; j < (1 << order_j); ++j )
+        {
+            cache.get(i, order_i, j, order_j);
+        }
+    }
+
+    time_end = std::chrono::system_clock::now();
+    std::cout << "Time to compute all possibilities using the cache: "
+        // output the number of ms
+        << std::chrono::duration<float, std::ratio<1,1000>>(time_end - time_begin).count() 
+        << "ms" << std::endl;
+}
+
 int main()
 {
     if( check_accessors() )
@@ -161,28 +218,6 @@ int main()
     {
         std::cout << "Matmul OK" << std::endl;
     }
-
-    auto time_begin = std::chrono::system_clock::now();
-
-    // output for the shuffle product 12 [shuffle] 12
-    uint32_t max_order = 10;
-    std::vector<cdouble> output ( (2<<max_order) , 0.0);
-    for(uint32_t order_i = 0; order_i < max_order; ++order_i)
-    for(uint32_t order_j = 0; order_j < max_order-order_i; ++order_j)
-    {
-        for(uint32_t i = 0; i < (2 << order_i); ++i )
-        for(uint32_t j = 0; j < (2 << order_j); ++j )
-        {
-            shuffle_product_basis(i, order_i, j, order_j, output);
-        }
-    }
-
-    auto time_end = std::chrono::system_clock::now();
-
-    std::cout << "Time : "
-        // output the number of ms
-        << std::chrono::duration<float, std::ratio<1,1000>>(time_end - time_begin).count() 
-        << "ms" << std::endl;
 
     return 1;
 }

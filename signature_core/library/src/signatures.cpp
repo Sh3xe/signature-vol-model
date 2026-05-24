@@ -55,14 +55,45 @@ Signature &Signature::operator*=(cdouble constant)
     return *this;
 }
 
-Signature &Signature::shuffle(Signature &other)
+Signature &Signature::projection_on( const coords &coordinates )
 {
     return *this;
 }
 
-Signature &Signature::projection_on( const coords &coordinates )
+Signature shuffle(const Signature &left, const Signature &right, size_t truncation)
 {
-    return *this;
+    Signature out(truncation, 0.0);
+
+    // Iterate over [left]'s tensors
+    for(size_t il = 0; il <= std::min(left.order(), truncation); ++il)
+    {
+        size_t offset_l = (1ULL << il)-1;
+
+        // Iterate over [right]'s tensors
+        for(size_t ir = 0; ir <= std::min(right.order(), truncation-il) ; ++ir)
+        {
+            size_t offset_r = (1ULL << ir)-1;
+            size_t offset_out = (1ULL << (ir+il))-1;
+            
+            // Iterate over all pairs of basis
+            for(size_t jl = 0; jl < offset_l+1; ++jl)
+            for(size_t jr = 0; jr < offset_r+1; ++jr)
+            {
+                // Shuffle product is linear, "shuffle_product_basis" computes this product on a basis,
+                // we call it on all possible basis, and multiply it be their value
+                // the last few parameters of "shuffle_product_basis" (out, constant, begin_index) allows us
+                // to directly write into a signature without allocating any memory
+                shuffle_product_basis(
+                    jl, il,
+                    jr, ir,
+                    out.m_data, offset_out,
+                    left.m_data[offset_l+jl]*right.m_data[offset_r+jr]
+                );
+            }
+        }
+    }
+
+    return out;
 }
 
 Signature matmul(const Signature &left, const Signature &right, size_t truncation)
@@ -96,13 +127,17 @@ Signature matmul(const Signature &left, const Signature &right, size_t truncatio
     return out;
 }
 
-void shuffle_product_basis_rec(uint32_t left, uint32_t order_left, uint32_t right, uint32_t order_right, uint32_t curr_out, uint32_t cur_out_order, std::vector<cdouble> &out)
+void shuffle_product_basis_rec(
+    uint32_t left, uint32_t order_left, uint32_t right, uint32_t order_right,
+    uint32_t curr_out, uint32_t cur_out_order,
+    std::vector<cdouble> &out, uint32_t begin_index,
+    cdouble constant )
 {
     // write to the output at the proper index
     if(order_left == 0)
     {
         uint32_t index = (right << cur_out_order) + curr_out;
-        out[index] += 1;
+        out[begin_index+index] += constant;
         return;
     }
 
@@ -110,18 +145,53 @@ void shuffle_product_basis_rec(uint32_t left, uint32_t order_left, uint32_t righ
     if(order_right == 0)
     {
         uint32_t index = (left << cur_out_order) + curr_out;
-        out[index] += 1;
+        out[begin_index+index] += constant;
         return;
     }
 
     // Break [left]
-    shuffle_product_basis_rec( left >> 1, order_left-1, right, order_right, ((left % 2) << cur_out_order) + curr_out, cur_out_order+1, out );
+    shuffle_product_basis_rec(
+        left >> 1, order_left-1, right, order_right,
+        ((left % 2) << cur_out_order) + curr_out, cur_out_order+1,
+        out, begin_index, constant );
     
     // expand right
-    shuffle_product_basis_rec( left, order_left, right >> 1, order_right-1, ((right % 2) << cur_out_order) + curr_out, cur_out_order+1, out );
+    shuffle_product_basis_rec(
+        left, order_left, right >> 1, order_right-1,
+        ((right % 2) << cur_out_order) + curr_out, cur_out_order+1,
+        out, begin_index, constant );
 }
 
-void shuffle_product_basis(uint32_t left, uint32_t order_left, uint32_t right, uint32_t order_right, std::vector<cdouble> &out)
+void shuffle_product_basis(
+    uint32_t left, uint32_t order_left,
+    uint32_t right, uint32_t order_right,
+    std::vector<cdouble> &out, uint32_t begin_index,
+    cdouble constant )
 {
-    shuffle_product_basis_rec(left, order_left, right, order_right, 0b0, 0, out);
+    shuffle_product_basis_rec(left, order_left, right, order_right, 0b0, 0, out, begin_index, constant);
+}
+
+ShuffleCache compute_shuffle_cache(uint32_t truncation)
+{
+    ShuffleCache cache;
+    cache.truncation = truncation;
+    cache.memory_usage = 0;
+
+    for(uint32_t order_i = 0; order_i <= truncation; ++order_i)
+    for(uint32_t order_j = 0; order_j <= truncation-order_i; ++order_j)
+    {
+        for(uint32_t i = 0; i < (1 << order_i); ++i )
+        for(uint32_t j = 0; j < (1 << order_j); ++j )
+        {
+            std::vector<cdouble> output ( (1<<(order_i+order_j)) , 0.0);
+
+            shuffle_product_basis(i, order_i, j, order_j, output, 0, 1.0);
+
+            uint64_t key = ShuffleCache::make_key(i, order_i, j, order_j);
+            cache.memory_usage += output.size() * sizeof(cdouble);
+            cache.cache[key] = std::move(output);
+        }
+    }
+
+    return cache;
 }
