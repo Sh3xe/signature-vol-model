@@ -2,10 +2,15 @@
 #include <pybind11/stl.h>
 #include <pybind11/complex.h>
 #include <pybind11/operators.h>
-#include <memory>
-#include <string>
+#include <pybind11/numpy.h>
 
 namespace py = pybind11;
+
+#include <memory>
+#include <string>
+#include <optional>
+#include <stdexcept>
+#include <cmath>
 
 #include "signatures.hpp"
 
@@ -41,11 +46,9 @@ PYBIND11_MODULE(signature_core_cpp, m)
         .def(py::self /= cdouble());
 
     // Cache class
-
     py::class_<ShuffleCache, std::shared_ptr<ShuffleCache>>(m, "ShuffleCache");
 
     // Operations and functions
-
     m.def("compute_shuffle_cache", &compute_shuffle_cache,
           "Precomputes and returns a shared pointer cache for shuffle products up to a given truncation order.",
           py::arg("truncation"));
@@ -69,4 +72,8 @@ PYBIND11_MODULE(signature_core_cpp, m)
     m.def("projection_on", &projection_on,
           "Extracts the projection of a signature onto a specific basis element defined by its bitwise coordinates and order.",
           py::arg("sig"), py::arg("coordinates"), py::arg("coord_order"));
+
+    m.def("to_string", &to_string,
+        "Converts the signature to a print-able string",
+        py::arg("sig"));
 }

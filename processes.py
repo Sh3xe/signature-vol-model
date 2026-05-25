@@ -1,6 +1,6 @@
 import numpy as np
 import numpy.random as npr
-from signature_core import *
+from signature_core_py import *
 
 def generate_brownian(time_grid, n_curves):
 	"""

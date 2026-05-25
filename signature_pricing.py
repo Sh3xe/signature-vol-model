@@ -1,4 +1,4 @@
-from signature_core import *
+from signature_core_py import *
 import numpy as np
 import scipy
 
