@@ -1,14 +1,9 @@
 import os
 import sys
 
-so_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "signature_core")
-if so_dir not in sys.path:
-    sys.path.append(so_dir)
-
 import signature_core_cpp as _cpp
-import numpy as np
-
 from signature_core_cpp import *
+import numpy as np
 
 def is_signature(tensor_list):
 	dim = None
