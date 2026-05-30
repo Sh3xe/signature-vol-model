@@ -3,9 +3,9 @@
 
 #include <sstream>
 
-std::ostream &operator<<(std::ostream &os, const Signature &sig)
+std::ostream &operator<<(std::ostream &os, const Sig2D &sig)
 {
-    os << "Signature (Max Order: " << sig.order() << "):\n";
+    os << "Sig2D (Max Order: " << sig.order() << "):\n";
     
     for(size_t i = 0; i <= sig.order(); ++i)
     {
@@ -64,7 +64,7 @@ std::ostream &operator<<(std::ostream &os, const Signature &sig)
     return os;
 }
 
-std::string to_string(const Signature &sig)
+std::string to_string(const Sig2D &sig)
 {
     std::stringstream ss;
 

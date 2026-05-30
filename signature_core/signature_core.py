@@ -1,13 +1,12 @@
-import os
-import sys
-
-import signature_core_cpp as _cpp
-from signature_core_cpp import *
+from . import signature_core_cpp as _cpp
 import numpy as np
 
 def is_signature(tensor_list):
 	dim = None
+	
 	for i in range(len(tensor_list)):
+		if i == 0 and isinstance(i, int):
+			continue
 		if len(tensor_list[i].shape) != i:
 			return False
 		if dim is None and i != 0:
@@ -30,7 +29,7 @@ def from_numpy(tensor_list: list[np.ndarray], dim=None):
 	
 	assert sig_dim == 2, "C++ API only supports signatures of dimension 2"
 
-	out_sig = _cpp.Signature(order=(len(tensor_list)-1), fill_value=(0.0+0.0j))
+	out_sig = _cpp.Sig2D(order=(len(tensor_list)-1), fill_value=(0.0+0.0j))
 
 	for ti in range(len(tensor_list)):
 		tensor = tensor_list[ti].astype(np.complex128)

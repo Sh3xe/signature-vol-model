@@ -112,12 +112,12 @@ TODO: put those in the image
 
 ## European Option Pricing Using Fourier Inversion Methods
 
-(TBD 05 2026)
+TODO: write the report
 
 ## Market Calibration using Implied Volatility Curves
 
-(TBD 05 2026)
+(TBD as of 05 2026)
 
 ## C++ backend and optimization
 
-(TBD 05 2026)
+TODO: output some benchmark, currently x60 to x150 faster than the python implementation

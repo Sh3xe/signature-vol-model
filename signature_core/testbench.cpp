@@ -8,13 +8,13 @@ using namespace std::complex_literals;
 bool check_accessors()
 {
     // Tensor product test
-    auto sig1 = Signature(3, 0.0);
+    auto sig1 = Sig2D(3, 0.0);
     sig1.set_element({0, 0}, 1.2);
     sig1.set_element({0, 1}, -6.0);
     sig1.set_element({1, 0}, 0.08);
     sig1.set_element({1, 1}, 16.54);
 
-    auto sig2 = Signature(3, 0.0);
+    auto sig2 = Sig2D(3, 0.0);
     sig2.set_element({0}, 0.98);
     sig2.set_element({1}, -0.5);
 
@@ -63,11 +63,11 @@ bool check_accessors()
 bool check_matmul()
 {
     // Tensor product test
-    auto sig1 = Signature(2, 0.0);
+    auto sig1 = Sig2D(2, 0.0);
     sig1.set_element({0}, 0.0);
     sig1.set_element({1}, 1.0);
 
-    auto sig2 = Signature(2, 0.0);
+    auto sig2 = Sig2D(2, 0.0);
     sig2.set_element({0}, 1.0);
     sig2.set_element({1}, 0.0);
 
@@ -169,27 +169,27 @@ void print_cache_perf()
 
 bool check_shuffle_product()
 {
-    Signature left(1, 0.0);
+    Sig2D left(1, 0.0);
     left.set_element(0b0, 0, 1.24);
     left.set_element(0b0, 1, -10.0 );
     left.set_element(0b1, 1, 1.0 );
     
-    Signature right(2, 0.0);
+    Sig2D right(2, 0.0);
     right.set_element(0b00, 2, -2.5);
     right.set_element(0b11, 2, -2.5);
 
     // Compute via the baseline shuffle implementation
-    Signature res1 = shuffle(left, right, left.order() + right.order());
+    Sig2D res1 = shuffle(left, right, left.order() + right.order());
 
     // Compute via the cached shuffle implementation
     auto cache = compute_shuffle_cache(10);
-    Signature res2 = shuffle(left, right, left.order() + right.order(), cache);
+    Sig2D res2 = shuffle(left, right, left.order() + right.order(), cache);
 
     // 2. Validate Order 0, 1, and 2 element-by-element for both results
     // Expected Order 0: [ (0,0) ]
     // Expected Order 1: [ (0,0), (0,0) ]
     // Expected Order 2: [[ (-3.1,0), (0,0) ], [ (0,0), (-3.1,0) ]]
-    auto check_low_orders = [](Signature& res) -> bool {
+    auto check_low_orders = [](Sig2D& res) -> bool {
         if (res.get_element(0b0, 0).real() != 0.0 ||
             res.get_element(0b0, 1).real() != 0.0 ||
             res.get_element(0b1, 1).real() != 0.0 ||
@@ -220,18 +220,18 @@ bool check_shuffle_product()
 
 bool check_projection()
 {
-    Signature left(1, 0.0);
+    Sig2D left(1, 0.0);
     left.set_element(0b0, 0, 1.24);
     left.set_element(0b0, 1, -10.0 );
     left.set_element(0b1, 1, 1.0 );
     
-    Signature right(2, 0.0);
+    Sig2D right(2, 0.0);
     right.set_element(0b00, 2, -2.5);
     right.set_element(0b11, 2, -2.5);
 
-    Signature res = shuffle(left, right, left.order() + right.order());
+    Sig2D res = shuffle(left, right, left.order() + right.order());
 
-    Signature projected_res = projection_on(res, 0b1, 1);
+    Sig2D projected_res = projection_on(res, 0b1, 1);
 
     if( !(
         projected_res.get_element(0b0, 0) == res.get_element(0b1, 1) &&

@@ -3,7 +3,7 @@
 #include <iostream>
 #include <bitset>
 
-Signature::Signature(size_t order, cdouble fill_value):
+Sig2D::Sig2D(size_t order, cdouble fill_value):
     m_order(order)
 {
     // [order] tensors of increasing size: 2^0 + ... + 2^{order} = 2^{order+1}-1
@@ -13,7 +13,15 @@ Signature::Signature(size_t order, cdouble fill_value):
     m_data.resize(n_elements, fill_value);
 }
 
-cdouble Signature::get_element( const coords &coordinates ) const
+// explicitely call copy operator=; should be used on the python side
+Sig2D Sig2D::copy() const
+{
+    Sig2D cpy = *this;
+
+    return cpy;
+}
+
+cdouble Sig2D::get_element( const coords &coordinates ) const
 {
     size_t coor_size = std::min(coordinates.size(), m_order);
     size_t el_id = (1 << coor_size )-1;
@@ -27,7 +35,7 @@ cdouble Signature::get_element( const coords &coordinates ) const
     return m_data[el_id];
 }
 
-void Signature::set_element( const coords &coordinates, cdouble el )
+void Sig2D::set_element( const coords &coordinates, cdouble el )
 {
     size_t coor_size = std::min(coordinates.size(), m_order);
     size_t el_id = (1 << coor_size )-1;
@@ -41,61 +49,75 @@ void Signature::set_element( const coords &coordinates, cdouble el )
     m_data[el_id] = el;
 }
 
-Signature &Signature::operator+=(const Signature &other)
+Sig2D &Sig2D::operator+=(const Sig2D &other)
 {
     for(size_t i = 0; i < std::min(m_data.size(), other.m_data.size()); ++i)
         m_data[i] += other.m_data[i];
     return *this;
 }
 
-Signature &Signature::operator-=(const Signature &other)
+Sig2D &Sig2D::operator-=(const Sig2D &other)
 {
     for(size_t i = 0; i < std::min(m_data.size(), other.m_data.size()); ++i)
         m_data[i] -= other.m_data[i];
     return *this;
 }
 
-Signature &Signature::operator/=(cdouble constant)
+Sig2D &Sig2D::operator/=(cdouble constant)
 {
     for(size_t i = 0; i < m_data.size(); ++i)
         m_data[i] /= constant;
     return *this;
 }
 
-Signature &Signature::operator*=(cdouble constant)
+Sig2D &Sig2D::operator*=(cdouble constant)
 {
     for(size_t i = 0; i < m_data.size(); ++i)
         m_data[i] *= constant;
     return *this;
 }
 
-// Signature projection_on( const Signature &sig, const coords &coordinates )
-// {
-//     Signature res( std::max( static_cast<size_t>(0), sig.m_data.size() - coordinates.size() ), 0.0);
+Sig2D operator+(const Sig2D &left, const Sig2D &right)
+{
+    Sig2D res = left.copy();
+    res += right;
+    return res;
+}
 
-//     if( coordinates.size() == 0 )
-//         return res;
-    
-//     // assert self.dim > max(indices), f"Incompatible dimension: the dimension of u is at least {max(indices)} but the signature has an inner dimension of {self.dim}"
+Sig2D operator-(const Sig2D &left, const Sig2D &right)
+{
+    Sig2D res = left.copy();
+    res -= right;
+    return res;
+}
 
-//     // res = [ np.zeros( (self.dim,)*i, dtype=self.dtype ) for i in range(len(self.data)-len(indices)) ]
+Sig2D operator*(const Sig2D &left, cdouble right)
+{
+    Sig2D res = left.copy();
+    res *= right;
+    return res;
+}
 
-    
+Sig2D operator*(cdouble left, const Sig2D &right)
+{
+    Sig2D res = right.copy();
+    res *= left;
+    return res;
+}
 
-// //     for i in range(len(self.data)-len(indices)):
-// //         for index in np.ndindex( (self.dim,) * i ):
-// //             tensor_prod_index = tuple(index) + indices
-// //             res[i][index] = self.data[len(tensor_prod_index)][tensor_prod_index]
-
-//     return res;
-// }
+Sig2D operator/(const Sig2D &left, cdouble right)
+{
+    Sig2D res = left.copy();
+    res /= right;
+    return res;
+}
 
 template <typename ShuffleBasisAccessor>
-Signature shuffle_base(
-    const Signature &left, const Signature &right, size_t truncation,
+Sig2D shuffle_base(
+    const Sig2D &left, const Sig2D &right, size_t truncation,
     ShuffleBasisAccessor &&shuffle_product_basis_acc)
 {
-    Signature out(truncation, 0.0);
+    Sig2D out(truncation, 0.0);
 
     // Iterate over [left]'s tensors
     for(size_t il = 0; il <= std::min(left.order(), truncation); ++il)
@@ -137,7 +159,7 @@ Signature shuffle_base(
     return out;
 }
 
-Signature shuffle(const Signature &left, const Signature &right, size_t truncation, const std::shared_ptr<ShuffleCache> &cache)
+Sig2D shuffle(const Sig2D &left, const Sig2D &right, size_t truncation, const std::shared_ptr<ShuffleCache> &cache)
 {
     auto accessor = [&](
         uint32_t jl, uint32_t il,
@@ -153,7 +175,7 @@ Signature shuffle(const Signature &left, const Signature &right, size_t truncati
     return shuffle_base(left, right, truncation, accessor);
 }
 
-Signature shuffle(const Signature &left, const Signature &right, size_t truncation)
+Sig2D shuffle(const Sig2D &left, const Sig2D &right, size_t truncation)
 {
     auto accessor = []( uint32_t jl, uint32_t il,
                         uint32_t jr, uint32_t ir,
@@ -171,9 +193,9 @@ Signature shuffle(const Signature &left, const Signature &right, size_t truncati
     return shuffle_base(left, right, truncation, accessor);
 }
 
-Signature matmul(const Signature &left, const Signature &right, size_t truncation)
+Sig2D matmul(const Sig2D &left, const Sig2D &right, size_t truncation)
 {
-    Signature out(truncation, 0.0);
+    Sig2D out(truncation, 0.0);
 
     // Iterate over [left]'s tensors
     for(size_t il = 0; il <= left.order(); ++il)
@@ -286,7 +308,7 @@ std::shared_ptr<ShuffleCache> compute_shuffle_cache(uint32_t truncation)
     return std::shared_ptr<ShuffleCache>(cache);
 }
 
-cdouble bracket(const Signature &left, const Signature &right)
+cdouble bracket(const Sig2D &left, const Sig2D &right)
 {
     cdouble total = 0.0;
 
@@ -296,9 +318,9 @@ cdouble bracket(const Signature &left, const Signature &right)
     return total;
 }
 
-Signature projection_on( const Signature &sig, uint32_t coordinates, uint32_t coord_order )
+Sig2D projection_on( const Sig2D &sig, uint32_t coordinates, uint32_t coord_order )
 {
-    Signature out ( std::max( static_cast<size_t>(0), sig.order() - coord_order), 0.0);
+    Sig2D out ( std::max( static_cast<size_t>(0), sig.order() - coord_order), 0.0);
 
     size_t cur_order = 0;
     for(size_t i = 0; i < out.m_data.size(); ++i)

@@ -12,10 +12,10 @@ struct ShuffleCache;
 using coords = std::vector<size_t>;
 
 // Assumed dimension: 2
-class Signature
+class Sig2D
 {
 public:
-    Signature(size_t order, cdouble fill_value = 0.0);
+    Sig2D(size_t order, cdouble fill_value = 0.0);
 
     constexpr size_t order() const { return m_order; }
 
@@ -41,13 +41,15 @@ public:
 
     void set_element( const coords &coordinates, cdouble el );
 
-    Signature &operator+=(const Signature &other);
+    Sig2D &operator+=(const Sig2D &other);
 
-    Signature &operator-=(const Signature &other);
+    Sig2D &operator-=(const Sig2D &other);
 
-    Signature &operator*=(cdouble constant);
+    Sig2D &operator*=(cdouble constant);
 
-    Signature &operator/=(cdouble constant);
+    Sig2D &operator/=(cdouble constant);
+
+    Sig2D copy() const;
 
 public:
     size_t m_order;
@@ -98,15 +100,15 @@ struct ShuffleCache
 
 std::shared_ptr<ShuffleCache> compute_shuffle_cache(uint32_t truncation);
 
-Signature shuffle(const Signature &left, const Signature &right, size_t truncation);
+Sig2D shuffle(const Sig2D &left, const Sig2D &right, size_t truncation);
 
-Signature shuffle(const Signature &left, const Signature &right, size_t truncation, const std::shared_ptr<ShuffleCache> &cache);
+Sig2D shuffle(const Sig2D &left, const Sig2D &right, size_t truncation, const std::shared_ptr<ShuffleCache> &cache);
 
-Signature matmul(const Signature &left, const Signature &right, size_t truncation);
+Sig2D matmul(const Sig2D &left, const Sig2D &right, size_t truncation);
 
-cdouble bracket(const Signature &left, const Signature &right);
+cdouble bracket(const Sig2D &left, const Sig2D &right);
 
-Signature projection_on( const Signature &sig, uint32_t coordinates, uint32_t coord_order );
+Sig2D projection_on( const Sig2D &sig, uint32_t coordinates, uint32_t coord_order );
 
 // def signature( x: np.ndarray, trunc: int ):
 // def bracket_with_process(cst_sig, process_sig, max_order = None):
@@ -131,3 +133,13 @@ void shuffle_product_basis(
     uint32_t right, uint32_t order_right,
     std::vector<cdouble> &out, uint32_t begin_index,
     cdouble constant );
+
+Sig2D operator+(const Sig2D &left, const Sig2D &right);
+
+Sig2D operator-(const Sig2D &left, const Sig2D &right);
+
+Sig2D operator*(const Sig2D &left, cdouble right);
+
+Sig2D operator*(cdouble left, const Sig2D &right);
+
+Sig2D operator/(const Sig2D &left, cdouble right);
