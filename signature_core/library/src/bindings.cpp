@@ -13,6 +13,7 @@ namespace py = pybind11;
 #include <cmath>
 
 #include "signatures.hpp"
+#include "pricing.hpp"
 
 PYBIND11_MODULE(signature_core_cpp, m)
 {
@@ -64,13 +65,19 @@ PYBIND11_MODULE(signature_core_cpp, m)
           "Precomputes and returns a shared pointer cache for shuffle products up to a given truncation order.",
           py::arg("truncation"));
 
-    m.def("shuffle", static_cast<Sig2D (*)(const Sig2D&, const Sig2D&, size_t, const std::shared_ptr<ShuffleCache>&)>(shuffle),
-          "Computes the shuffle product of two signatures up to a given truncation order using a precomputed cache.",
-          py::arg("left"), py::arg("right"), py::arg("truncation"), py::arg("cache"));
+    m.def("shuffle", [](const Sig2D& left, const Sig2D& right, size_t truncation, const std::shared_ptr<ShuffleCache>& cache) {
+        if (!cache) {
+            return static_cast<Sig2D (*)(const Sig2D&, const Sig2D&, size_t)>(shuffle)(left, right, truncation);
+        }
+        return static_cast<Sig2D (*)(const Sig2D&, const Sig2D&, size_t, const std::shared_ptr<ShuffleCache>&)>(shuffle)(left, right, truncation, cache);
+    },
+        "Computes the shuffle product of two signatures with an optional precomputed cache.",
+        py::arg("left"), 
+        py::arg("right"), 
+        py::arg("truncation"), 
+        py::arg("cache") = py::none()
+    );
 
-    m.def("shuffle", static_cast<Sig2D (*)(const Sig2D&, const Sig2D&, size_t)>(shuffle),
-          "Computes the shuffle product of two signatures up to a given truncation order.",
-          py::arg("left"), py::arg("right"), py::arg("truncation"));
 
     m.def("matmul", &matmul,
           "Computes the tensor multiplication (matrix multiplication equivalent) of two signatures up to a given truncation order.",
@@ -87,4 +94,35 @@ PYBIND11_MODULE(signature_core_cpp, m)
     m.def("to_string", &to_string,
         "Converts the signature to a print-able string",
         py::arg("sig"));
+
+    m.def("european_call_integrand_vr", &european_call_integrand_vr,
+        "Returns f(u) = e^{i(u-i/2)k_0 + psi_0} using variance reduction for numerical stability.\n\n"
+        "Args:\n"
+        "    u (float): Integrand parameter\n"
+        "    k_0 (float): log(S_0 / K)\n"
+        "    maturity (float): Time to maturity\n"
+        "    model_sig (Sig2D): Model signature parameter\n"
+        "    model_sig_squared (Sig2D): Precomputed shuffle(model_sig, model_sig)\n"
+        "    rho (float): Correlation parameter\n"
+        "    r_bs (float): Black-Scholes risk-free rate\n"
+        "    vol_bs (float): Black-Scholes volatility\n"
+        "    trunc (int): Signature truncation order\n"
+        "    rk_subdivs (int): Runge-Kutta subdivisions\n"
+        "    upper_bound (float): Numerical stability threshold\n"
+        "    cache (ShuffleCache): Precomputed cache instance\n\n"
+        "Returns:\n"
+        "    float: Real part of the integrand value",
+        py::arg("u"),
+        py::arg("k_0"),
+        py::arg("maturity"),
+        py::arg("model_sig"),
+        py::arg("model_sig_squared"),
+        py::arg("rho"),
+        py::arg("r_bs"),
+        py::arg("vol_bs"),
+        py::arg("trunc"),
+        py::arg("rk_subdivs"),
+        py::arg("upper_bound"),
+        py::arg("cache")
+    );
 }

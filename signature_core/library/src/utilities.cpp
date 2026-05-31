@@ -2,6 +2,9 @@
 #include "signatures.hpp"
 
 #include <sstream>
+#include <cmath>
+#include <cassert>
+#include <limits>
 
 std::ostream &operator<<(std::ostream &os, const Sig2D &sig)
 {
@@ -71,4 +74,14 @@ std::string to_string(const Sig2D &sig)
     ss << sig;
 
     return ss.str();
+}
+
+double normal_cdf(double x)
+{
+    return 0.5 * (1.0 + std::erf(x / std::sqrt(2.0)));
+}
+
+double normal_cdf(double x, double mean, double stddev)
+{
+    return normal_cdf((x - mean) / stddev);
 }

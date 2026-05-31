@@ -4,16 +4,16 @@
   <img src="outputs/md_preview.png" alt="Signature Volatility Models Preview" width="100%">
 </p>
 
-
 ## Table of content
 
-1. [Signature Volatility Models](#signature-volatility-models)
-2. [How to Run](#how-to-run)
-3. [Introduction to Signature Volatility Models](#introduction-to-signature-volatility-models)
-4. [Analysis of the Approximation of Signature Models on Known Processes](#error-of-the-model-on-known-processes)
-5. [European Option Pricing Using Fourier Inversion Methods](#european-option-pricing-using-fourier-inversion-methods)
-6. [Market Calibration Using Implied Volatility Curves](#market-calibration-using-implied-volatility-curves)
-7. [C++ Backend and Optimization](#c-backend-and-optimization)
+1. [Table of content](#table-of-content)
+2. [Signature Volatility Models](#signature-volatility-models-1)
+3. [How to run](#how-to-run)
+4. [Introduction to Signature Volatility Models](#introduction-to-signature-volatility-models)
+5. [Error of the model on known processes](#error-of-the-model-on-known-processes)
+6. [European Option Pricing Using Fourier Inversion Methods](#european-option-pricing-using-fourier-inversion-methods)
+7. [Market Calibration using Implied Volatility Curves](#market-calibration-using-implied-volatility-curves)
+8. [C++ backend and optimization](#c-backend-and-optimization)
 
 ## Signature Volatility Models
 
@@ -27,11 +27,11 @@ This repository is based on the paper [Signature volatility models: pricing and 
 
 **Compiling the C++ binaries**: `python build_core.py` (Windows) or `python3 build_core.py` (Linux/MacOS)
 
-**Run Ornstein/MRGBM analysis**: Located in `1_model_analysis.ipynb`
+**Run Ornstein/MRGBM analysis**: `1_model_analysis.ipynb`
 
-**Market Calibration**: Located in `2_signature_fitting.ipynb`
+**Run Market Calibration**: `2_signature_fitting.ipynb`
 
-**Fourier method for option pricing**: Located in `3_option_pricing.ipynb`
+**Run Fourier method for option pricing**: `3_option_pricing.ipynb`
 
 ## Introduction to Signature Volatility Models
 
@@ -50,28 +50,12 @@ The Ornstein-Uhlenbeck process can be approximated exactly using a specific sign
 #### Naïve Approach
 In this approach, the signature representing the motion is constant (independent of time), so the time dependence relies solely on the Brownian signature.
 
-TODO: put those in the image
-
-| Left Image Parameters | Right Image Parameters |
-|-|-|
-| κ = 1  | κ = 4  |
-| η = 1.2  | η = 2.0  |
-| θ = 0.25| θ = 0.25|
-
 ![Naïve Approximation of Ornstein-Uhlenbeck](outputs/ornstein_approx_naive.png)
 
 (TODO: put the error I found here)
 
 #### More Stable Approach
 In this approach, a different signature is used for each time step, improving stability.
-
-TODO: put those in the image
-
-| Left Image Parameters | Right Image Parameters |
-|-|-|
-| κ = 1  | κ = 4  |
-| η = 1.2  | η = 2.0  |
-| θ = 0.25| θ = 0.25|
 
 ![Stable Approximation of Ornstein-Uhlenbeck](outputs/ornstein_approx_stable.png)
 
@@ -86,27 +70,9 @@ TODO: put those in the image
 
 #### Constant Signature Approach
 
-TODO: put those in the image
-
-| Left Image Parameters | Right Image Parameters |
-|-|-|
-| κ = 1  | κ = 4  |
-| η = 0.5  | η = 2  |
-| θ = 0.25| θ = 0.25|
-| α = 1.6 | α = 2  |
-
 ![MRGBM Approximation with Constant Signature](outputs/mrgbm_approx_naive.png)
 
 #### One Signature per Time Step Approach
-
-TODO: put those in the image
-
-| Left Image Parameters | Right Image Parameters |
-|-|-|
-| κ = 1 | κ = 4  |
-| η = 0.5  | η = 2  |
-| θ = 0.25| θ = 0.25|
-| α = 1.6 | α = 2  |
 
 ![MRGBM Approximation with One Signature per Time Step](outputs/mrgbm_approx_stable.png)
 

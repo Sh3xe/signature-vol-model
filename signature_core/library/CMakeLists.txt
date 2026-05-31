@@ -5,8 +5,7 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # Library setup 
-add_library(signature_core STATIC src/signatures.cpp src/utilities.cpp)
-
+add_library(signature_core STATIC src/signatures.cpp src/utilities.cpp src/pricing.cpp )
 set_target_properties(signature_core PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
 target_include_directories(signature_core PUBLIC

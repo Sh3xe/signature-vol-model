@@ -23,7 +23,7 @@ public:
     {
         size_t shift = (1<<coord_order)-1 + coordinates;
 
-        if( shift > m_data.size() ) return 0.0;
+        if( shift >= m_data.size() ) return 0.0;
 
         return m_data[shift];
     }
@@ -32,7 +32,7 @@ public:
     {
         size_t shift = (1<<coord_order)-1 + coordinates;
 
-        if( shift > m_data.size() ) return;
+        if( shift >= m_data.size() ) return;
 
         m_data[shift] = el;
     }

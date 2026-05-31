@@ -2,14 +2,20 @@ import signature_core as core
 import numpy as np
 import scipy
 
-def psi_derivative(u: float, t: float, psi: core.Sig2D, model_sig: core.Sig2D, model_sig_squared: core.Sig2D, rho: float, trunc: int) -> core.Sig2D:
+def psi_derivative(
+		u: float, t: float, psi: core.Sig2D,
+		model_sig: core.Sig2D, model_sig_squared: core.Sig2D,
+		rho: float, trunc: int,
+		sig_cache: core.ShuffleCache = None
+	) -> core.Sig2D:
+
 	psi_1 = core.projection_on(psi, 0b0, 1)
 	psi_2 = core.projection_on(psi, 0b1, 1)
 	
-	res = core.shuffle(psi_2, psi_2, trunc)
+	res = core.shuffle(psi_2, psi_2, trunc, sig_cache)
 	res *= 0.5
 
-	b = core.shuffle(model_sig, psi_2, trunc)
+	b = core.shuffle(model_sig, psi_2, trunc, sig_cache)
 	b *= ( rho * 1j * u )
 	res += b
 
@@ -23,29 +29,24 @@ def psi_derivative(u: float, t: float, psi: core.Sig2D, model_sig: core.Sig2D, m
 
 	res += psi_1
 
-	# print("=="*20)
-	# print(u, model_sig)
-	# print(psi)
-	# print(res)
-
 	return res
 
-def simulate_psi_euler(psi_0: core.Sig2D, u: float, maturity: float, model_sig: core.Sig2D, model_sig_squared, rk_subdivs: int, rho: float, trunc: int):
+def simulate_psi_euler(psi_0: core.Sig2D, u: float, maturity: float, model_sig: core.Sig2D, model_sig_squared, rk_subdivs: int, rho: float, trunc: int, sig_cache: core.ShuffleCache = None):
 	psi = psi_0.copy()
 	dt = float(maturity / rk_subdivs)
 	for i in range(rk_subdivs):
-		deriv = psi_derivative(u, i*dt, psi, model_sig, model_sig_squared, rho, trunc)
+		deriv = psi_derivative(u, i*dt, psi, model_sig, model_sig_squared, rho, trunc, sig_cache)
 		psi = psi + (dt * deriv)
 	return psi
 
-def simulate_psi_rk4(psi_0: core.Sig2D, u: float, maturity: float, model_sig: core.Sig2D, model_sig_squared, rk_subdivs: int, rho: float, trunc: int):
+def simulate_psi_rk4(psi_0: core.Sig2D, u: float, maturity: float, model_sig: core.Sig2D, model_sig_squared, rk_subdivs: int, rho: float, trunc: int, sig_cache: core.ShuffleCache = None):
 	psi = psi_0.copy()
 	dt = float(maturity / rk_subdivs)
 	for i in range(rk_subdivs):
-		k1 = psi_derivative(u, i*dt, psi, model_sig, model_sig_squared, rho, trunc)
-		k2 = psi_derivative(u, i*dt+dt/2, psi + (0.5*dt)*k1, model_sig, model_sig_squared, rho, trunc)
-		k3 = psi_derivative(u, i*dt+dt/2, psi + (0.5*dt)*k2, model_sig, model_sig_squared, rho, trunc)
-		k4 = psi_derivative(u, (i+1)*dt, psi + dt*k3, model_sig, model_sig_squared, rho, trunc)
+		k1 = psi_derivative(u, i*dt, psi, model_sig, model_sig_squared, rho, trunc, sig_cache)
+		k2 = psi_derivative(u, i*dt+dt/2, psi + (0.5*dt)*k1, model_sig, model_sig_squared, rho, trunc, sig_cache)
+		k3 = psi_derivative(u, i*dt+dt/2, psi + (0.5*dt)*k2, model_sig, model_sig_squared, rho, trunc, sig_cache)
+		k4 = psi_derivative(u, (i+1)*dt, psi + dt*k3, model_sig, model_sig_squared, rho, trunc, sig_cache)
 		psi = psi + (dt/6)*(k1 + 2*k2 + 2*k3 +k4 )
 
 	return psi
@@ -66,7 +67,8 @@ def european_call_sig(
 	rk_subdivs = 50,
 	integral_subdivs = 100,
 	r_bs = None,
-	vol_bs = None
+	vol_bs = None,
+	cache = False
 	):
 	"""
 	Fair price of a european call option given the parameters, under a signature volatility model
@@ -83,9 +85,12 @@ def european_call_sig(
 		r_bs, vol_bs: Used for variance reduction, risk-free rate & vol
 	"""
 
+	if cache is None:
+		cache = core.compute_shuffle_cache(trunc)
+
 	k_0 = np.log( initial_price / strike )
 	bs_call = None
-	variance_reduction = (r_bs != None) and (vol_bs != None)
+	variance_reduction = (r_bs is not None) and (vol_bs is not None)
 	if variance_reduction:
 		bs_call = european_call_bs(initial_price, maturity, strike, r_bs, vol_bs)
 
@@ -95,18 +100,13 @@ def european_call_sig(
 
 	# default integrand
 	def integrand_vr(u):
-		if u > upper_bound:
-			return 0
-		res = simulate_psi_rk4(psi0, u-0.5j, maturity, model_signature, model_sig_squared, rk_subdivs, rho, trunc)
-		characteristic_bs = np.exp(-0.5*vol_bs**2 *((u-0.5j)**2+1j*(u-0.5j)) * maturity)
-		characteristic_val = np.exp( res.get_element([]) )
-		return np.real( np.exp(1j*(u-0.5j)*k_0) * (characteristic_val - characteristic_bs) ) / ( u**2 + 0.25 )
+		return core.european_call_integrand_vr(u, k_0, maturity, model_signature, model_sig_squared, rho, r_bs, vol_bs, trunc, rk_subdivs, upper_bound, cache)
 
 	# integrand if the variance reduction is enabled
 	def integrand(u):
 		if u > upper_bound:
 			return 0
-		res = simulate_psi_rk4(psi0, u-0.5j, maturity, model_signature, model_sig_squared, rk_subdivs, rho, trunc)
+		res = simulate_psi_rk4(psi0, u-0.5j, maturity, model_signature, model_sig_squared, rk_subdivs, rho, trunc, cache)
 		characteristic_val = np.exp( res.get_element([]) )
 		return np.real( np.exp(1j*(u-0.5j)*k_0) * characteristic_val ) / ( u**2 + 0.25 )
 
@@ -120,3 +120,4 @@ def european_call_sig(
 		return bs_call - strike / np.pi * integral
 	else:
 		return initial_price - strike / np.pi * integral
+	

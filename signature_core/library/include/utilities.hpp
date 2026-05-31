@@ -7,6 +7,10 @@
 using cdouble = std::complex<double>;
 class Sig2D;
 
+double normal_cdf(double x);
+
+double normal_cdf(double x, double mean, double stddev);
+
 std::ostream &operator<<(std::ostream &os, const Sig2D &sig);
 
 std::string to_string(const Sig2D &sig);

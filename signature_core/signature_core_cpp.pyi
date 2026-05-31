@@ -34,3 +34,39 @@ def matmul(left: Sig2D, right: Sig2D, truncation: int) -> Sig2D: ...
 def bracket(left: Sig2D, right: Sig2D) -> complex: ...
 def projection_on(sig: Sig2D, coordinates: int, coord_order: int) -> Sig2D: ...
 def to_string(sig: Sig2D) -> str: ...
+
+def european_call_integrand_vr(
+    u: float,
+    k_0: float,
+    maturity: float,
+    model_sig: Sig2D,
+    model_sig_squared: Sig2D,
+    rho: float,
+    r_bs: float,
+    vol_bs: float,
+    trunc: int,
+    rk_subdivs: int,
+    upper_bound: float,
+    cache: ShuffleCache
+) -> float:
+    """
+    Returns f(u) = e^{i(u-i/2)k_0 + psi_0} using variance reduction for numerical stability.
+
+    Args:
+        u: Integrand parameter.
+        k_0: log(S_0 / K) log-forward moneyness.
+        maturity: Time to maturity of the option.
+        model_sig: Model signature parameter.
+        model_sig_squared: Precomputed shuffle(model_sig, model_sig) to optimize computation time.
+        rho: Correlation parameter (global and model Brownian motions).
+        r_bs: Black-Scholes risk-free rate used for variance reduction.
+        vol_bs: Black-Scholes volatility used for variance reduction.
+        trunc: Signature truncation order.
+        rk_subdivs: Number of subdivisions for the Runge-Kutta 4 method.
+        upper_bound: Numerical stability threshold (returns 0.0 if u > upper_bound).
+        cache: Precomputed ShuffleCache instance.
+
+    Returns:
+        The real part of the integrand value.
+    """
+    ...
