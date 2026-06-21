@@ -59,7 +59,7 @@ $\mathrm{d}S_{t} = \Sigma_{t} S_{t} \mathrm{d}B_{t}$
 
 Where
 * $B_{t} = \rho W_{t} + \sqrt{1 - \rho^{2}} W_{t}^{\perp}$ with $W, W^{\perp}$ a Brownian motion independent of $W_t$
-- The volatility process $\Sigma_{t}$ is a linear combination of the signature of the time-extended Brownian motion $\widehat{W}_{t} = (t, W_{t})$
+- The volatility process $\Sigma_{t}$ is a linear combination of the signature of the time-extended Brownian motion $\widehat{W}_t = (t, W_t)$
 
 ## Error of the model on known processes
 
@@ -71,9 +71,9 @@ Definition of the an Ornstein-Uhlenbeck process:
 * $\mathrm{d}X_{t} = \kappa(\theta - X_{t}) \, \mathrm{d}t + \eta \, \mathrm{d}W_{t}, \quad X_{0} = x$
 
 Exact representation using signatures:
-* $ X_{t} = \left\langle \boldsymbol{\ell}^{\mathrm{OU}}, \widehat{\mathbb{W}}_{t} \right\rangle$
+* $X_{t} = \left\langle \boldsymbol{\ell}^{\mathrm{OU}}, \widehat{\mathbb{W}}_{t} \right\rangle$
 * $\boldsymbol{\ell}^{\mathrm{OU}} = \left( x \varnothing + \kappa \theta \mathbf{1} + \eta \mathbf{2} \right) e^{\sqcup \sqcup (-\kappa \mathbf{1})}$
-* with $e^{\sqcup \sqcup \mathbf{v}} $ defined in the paper
+* with $e^{\sqcup \sqcup \mathbf{v}}$ defined in the paper
 
 #### Naïve Approach
 In this approach, the signature representing the motion is constant (independent of time), so the time dependence relies solely on the Brownian signature.
@@ -128,7 +128,7 @@ $$C(S_0, K, T) = S_0 - \frac{\sqrt{K}}{\pi} \int_{0}^{\infty} \text{Re}\left[ \f
 
 ## C++ backend and optimization
 
-This project includes a benchmark suite to compare the evaluation speed of the European Call signature pricing engine implemented in Python (`pricing_py`) versus C++ (`pricing_cpp`). 
+This project includes a benchmark suite to compare the evaluation speed of the European Call signature pricing engine implemented in Python versus C++. 
 
 The benchmarks measure execution time across variations in integration (Order of signature, Runge-Kutta subdivisions and Integral subdivisions).
 
