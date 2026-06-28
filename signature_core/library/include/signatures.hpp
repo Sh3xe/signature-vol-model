@@ -17,6 +17,8 @@ class Sig2D
 public:
     Sig2D(size_t order, cdouble fill_value = 0.0);
 
+    Sig2D(size_t order, const std::vector<cdouble> &values);
+
     constexpr size_t order() const { return m_order; }
 
     cdouble get_element( uint32_t coordinates, uint32_t coord_order ) const

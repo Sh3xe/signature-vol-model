@@ -27,6 +27,7 @@ def simulate_psi_euler(psi_0: Sig, u: float, maturity: float, model_sig: Sig, mo
 def simulate_psi_rk4(psi_0: Sig, u: float, maturity: float, model_sig: Sig, model_sig_squared, rk_subdivs: int, rho: float, trunc: int):
 	psi = psi_0.copy()
 	dt = float(maturity / rk_subdivs)
+
 	for i in range(rk_subdivs):
 		k1 = psi_derivative(u, i*dt, psi, model_sig, model_sig_squared, rho, trunc)
 		k2 = psi_derivative(u, i*dt+dt/2, psi + 0.5*dt*k1, model_sig, model_sig_squared, rho, trunc)

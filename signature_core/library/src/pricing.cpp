@@ -1,6 +1,12 @@
 #include "pricing.hpp"
 #include "utilities.hpp"
 
+#include <cmath>
+#include <algorithm>
+
+#include <gsl/gsl_integration.h>
+#include <gsl/gsl_errno.h>
+
 using namespace std::complex_literals;
 
 Sig2D psi_derivative(cdouble u, double t, const Sig2D &psi, const Sig2D &model_sig, const Sig2D &model_sig_squared, double rho, int trunc, const std::shared_ptr<ShuffleCache> &cache)
@@ -82,11 +88,175 @@ double european_call_integrand_vr(
 
 	Sig2D res = simulate_psi_rk4(psi0, us, maturity, model_sig, model_sig_squared, rk_subdivs, rho, trunc, cache);
 
-	cdouble characteristic_bs = std::exp(-0.5*vol_bs*vol_bs *(us*us+1i*us) * maturity);
+	cdouble res_0 = res.get_element(0b0, 0);
+	if (std::isnan(res_0.real()) || std::isnan(res_0.imag())  || std::isinf(res_0.real())) return 0.0;
 
-	cdouble characteristic_val = std::exp( res.get_element(0b0, 0) );
+	cdouble characteristic_bs = std::exp(-0.5*vol_bs*vol_bs *(us*us+1i*us) * maturity);
+	
+	cdouble characteristic_val = std::exp( res_0 );
+
 
 	cdouble t = ( std::exp(1i*us*k_0) * (characteristic_val - characteristic_bs) ) / ( u*u + 0.25 );
 
 	return t.real();
+}
+
+/**
+ * @brief Returns the non-variance-reduced integrand f(u) for a European call under the signature model.
+ * * @param u integrand parameter
+ * @param k_0 log(S_K)
+ * @param maturity option parameter
+ * @param model_sig option parameter
+ * @param model_sig_squared MUST be shuffle(model_sig, model_sig, trunc) (pre computed to gain time)
+ * @param rho signature volatility parameter (correlation of the global & the model brownians)
+ * @param trunc signature truncation
+ * @param rk_subdivs subdivision used for the Runge-Kutta 4 method used to solve the Ricatti PDE
+ * @param upper_bound if u > upper_bound, returns 0.0; (used for numerical stability)
+ * @param cache ShuffleProduct Cache (must be present)
+ * @return double f(u)
+ */
+double european_call_integrand(
+    double u,
+    double k_0, double maturity,
+    const Sig2D &model_sig, const Sig2D &model_sig_squared, double rho,
+    int trunc, int rk_subdivs,
+    double upper_bound,
+    std::shared_ptr<ShuffleCache> cache )
+{
+    auto psi0 = Sig2D(trunc, 0.0);
+
+    cdouble us = static_cast<cdouble>(u) - 0.5i;
+
+    // Solve the Riccati PDE via RK4
+    Sig2D res = simulate_psi_rk4(psi0, us, maturity, model_sig, model_sig_squared, rk_subdivs, rho, trunc, cache);
+
+	cdouble res_0 = res.get_element(0b0, 0);
+	if (std::isnan(res_0.real()) || std::isnan(res_0.imag())  || std::isinf(res_0.real())) return 0.0;
+
+    // Extract the characteristic function value (res.data[0] equivalent)
+    cdouble characteristic_val = std::exp( res_0 );
+
+    // Compute the integrand without subtracting the Black-Scholes component
+    cdouble t = ( std::exp(1i * us * k_0) * characteristic_val ) / ( u * u + 0.25 );
+
+    return t.real();
+}
+
+double european_call_bs(double initial_price, double maturity, double strike, double r_bs, double vol_bs)
+{
+    if (vol_bs <= 0.0 || maturity <= 0.0) return std::max(0.0, initial_price - strike);
+
+    double d1 = (std::log(initial_price / strike) + (r_bs + 0.5 * vol_bs * vol_bs) * maturity) / (vol_bs * std::sqrt(maturity));
+
+    double d2 = d1 - vol_bs * std::sqrt(maturity);
+
+    return initial_price * 0.5 * std::erfc(-d1 / std::sqrt(2.0)) - strike * std::exp(-r_bs * maturity) * 0.5 * std::erfc(-d2 / std::sqrt(2.0));
+}
+
+struct VrIntegrandContext
+{
+    double k_0; double maturity; const Sig2D &model_sig; const Sig2D &model_sig_squared;
+    double rho; double r_bs; double vol_bs; int trunc; int rk_subdivs; double upper_bound;
+    std::shared_ptr<ShuffleCache> cache;
+};
+
+struct NonVrIntegrandContext
+{
+    double k_0; double maturity; const Sig2D &model_sig; const Sig2D &model_sig_squared;
+    double rho; int trunc; int rk_subdivs; double upper_bound;
+    std::shared_ptr<ShuffleCache> cache;
+};
+
+static double gsl_integrand_vr_wrapper(double u, void *params)
+{
+    auto *ctx = static_cast<VrIntegrandContext*>(params);
+    return european_call_integrand_vr(
+        u, ctx->k_0, ctx->maturity, ctx->model_sig, ctx->model_sig_squared,
+        ctx->rho, ctx->r_bs, ctx->vol_bs, ctx->trunc, ctx->rk_subdivs, ctx->upper_bound, ctx->cache
+    );
+}
+
+static double gsl_integrand_non_vr_wrapper(double u, void *params)
+{
+    auto *ctx = static_cast<NonVrIntegrandContext*>(params);
+    return european_call_integrand(
+        u, ctx->k_0, ctx->maturity, ctx->model_sig, ctx->model_sig_squared,
+        ctx->rho, ctx->trunc, ctx->rk_subdivs, ctx->upper_bound, ctx->cache
+    );
+}
+
+double european_call_sig(
+    double initial_price,
+    double maturity,
+    double strike,
+    const Sig2D &model_signature,
+    double rho,
+    int trunc,
+    int rk_subdivs,
+    int integral_subdivs,
+    std::shared_ptr<ShuffleCache> cache
+) {
+    double k_0 = std::log(initial_price / strike);
+    
+    // Precompute squared signature
+    Sig2D model_sig_squared = shuffle(model_signature, model_signature, trunc, cache);
+    double upper_bound = 500.0;
+
+    // Allocate adaptive quadrature workspace
+    gsl_integration_workspace *w = gsl_integration_workspace_alloc(integral_subdivs);
+    double integral_result = 0.0;
+    double abs_error = 0.0;
+
+    gsl_function F;
+	NonVrIntegrandContext ctx{
+		k_0, maturity, model_signature, model_sig_squared,
+		rho, trunc, rk_subdivs, upper_bound, cache
+	};
+	F.function = &gsl_integrand_non_vr_wrapper;
+	F.params = &ctx;
+
+	gsl_integration_qagiu(&F, 0.0, 0.1, 1e-7, integral_subdivs, w, &integral_result, &abs_error);
+	gsl_integration_workspace_free(w);
+
+	return initial_price - (strike / M_PI) * integral_result;
+}
+
+double european_call_sig_vr(
+    double initial_price,
+    double maturity,
+    double strike,
+    const Sig2D &model_signature,
+    double rho,
+    int trunc,
+    int rk_subdivs,
+    int integral_subdivs,
+    double r_bs,
+    double vol_bs,
+    std::shared_ptr<ShuffleCache> cache
+) {
+    double k_0 = std::log(initial_price / strike);
+    
+    // Precompute squared signature
+    Sig2D model_sig_squared = shuffle(model_signature, model_signature, trunc, cache);
+    double upper_bound = 500.0;
+
+    // Allocate adaptive quadrature workspace
+    gsl_integration_workspace *w = gsl_integration_workspace_alloc(integral_subdivs);
+    double integral_result = 0.0;
+    double abs_error = 0.0;
+
+    gsl_function F;
+	VrIntegrandContext ctx{
+		k_0, maturity, model_signature, model_sig_squared,
+		rho, r_bs, vol_bs, trunc, rk_subdivs, upper_bound, cache
+	};
+	F.function = &gsl_integrand_vr_wrapper;
+	F.params = &ctx;
+
+	// Adaptive integration mapping [0, inf)
+	gsl_integration_qagiu(&F, 0.0, 0.1, 1e-7, integral_subdivs, w, &integral_result, &abs_error);
+	gsl_integration_workspace_free(w);
+
+	double bs_call = european_call_bs(initial_price, maturity, strike, r_bs, vol_bs);
+	return bs_call - (strike / M_PI) * integral_result;
 }

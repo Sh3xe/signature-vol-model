@@ -13,6 +13,26 @@ Sig2D::Sig2D(size_t order, cdouble fill_value):
     m_data.resize(n_elements, fill_value);
 }
 
+Sig2D::Sig2D(size_t order, const std::vector<cdouble> &values):
+    m_order(order)
+{
+    // [order] tensors of increasing size: 2^0 + ... + 2^{order} = 2^{order+1}-1
+    size_t n_elements = (1ULL << (order+1)) - 1;
+
+    // allocated the data and fill it
+    m_data.resize(n_elements, 0.0);
+
+    if( n_elements != values.size() )
+    {
+        std::cout << "WARNING: in Sig2D::Sig2D(size_t, const std::vector<cdouble>&). N_elements != values.size(); n_elements = " << n_elements << " ; values.size() : " << values.size() << std::endl;
+    }
+
+    for( size_t i = 0; i < std::min(n_elements, values.size()); ++i)
+    {
+        m_data[i] = values[i];
+    }
+}
+
 // explicitely call copy operator=; should be used on the python side
 Sig2D Sig2D::copy() const
 {
