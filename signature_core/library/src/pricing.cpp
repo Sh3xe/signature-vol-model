@@ -2,6 +2,7 @@
 #include "utilities.hpp"
 
 #include <cmath>
+#include <iostream>
 #include <algorithm>
 
 #include <gsl/gsl_integration.h>
@@ -54,23 +55,6 @@ Sig2D simulate_psi_rk4(const Sig2D &psi_0, cdouble u, double maturity, const Sig
 	return psi;
 }
 
-/**
- * @brief Returns f(u) = e^{i(u-i/2)k_0 + psi_0} where psi follows [...]
- * 
- * @param u integrand parameter
- * @param k_0 log(S_K)
- * @param maturity option parameter
- * @param model_sig option parameter
- * @param model_sig_squares MUST be shuffle(model_sig, model_sig, trunc) (pre computed to gain time)
- * @param rho signature volatility parameter (correlation of the global & the model brownians)
- * @param r_bs Black-Scholes risk-free rate (used for variance reduction)
- * @param vol_bs Black-Scholes volatility (used for variance reduction)
- * @param trunc signature truncation
- * @param rk_subdivs subdivision used for the Runge-Kutta 4 method used to solve the Ricatti PDE
- * @param upper_bound if u > upper_bound, returns 0.0; (used for numerical stability)
- * @param cache ShuffleProduct Cache (must be present)
- * @return double f(u)
- */
 double european_call_integrand_vr(
 	double u,
     double k_0, double maturity,
@@ -95,26 +79,13 @@ double european_call_integrand_vr(
 	
 	cdouble characteristic_val = std::exp( res_0 );
 
-
 	cdouble t = ( std::exp(1i*us*k_0) * (characteristic_val - characteristic_bs) ) / ( u*u + 0.25 );
+
+    if( t.real() < 0.0 || t.real() > 1000.0 ) return 0.0;
 
 	return t.real();
 }
 
-/**
- * @brief Returns the non-variance-reduced integrand f(u) for a European call under the signature model.
- * * @param u integrand parameter
- * @param k_0 log(S_K)
- * @param maturity option parameter
- * @param model_sig option parameter
- * @param model_sig_squared MUST be shuffle(model_sig, model_sig, trunc) (pre computed to gain time)
- * @param rho signature volatility parameter (correlation of the global & the model brownians)
- * @param trunc signature truncation
- * @param rk_subdivs subdivision used for the Runge-Kutta 4 method used to solve the Ricatti PDE
- * @param upper_bound if u > upper_bound, returns 0.0; (used for numerical stability)
- * @param cache ShuffleProduct Cache (must be present)
- * @return double f(u)
- */
 double european_call_integrand(
     double u,
     double k_0, double maturity,
@@ -139,6 +110,8 @@ double european_call_integrand(
     // Compute the integrand without subtracting the Black-Scholes component
     cdouble t = ( std::exp(1i * us * k_0) * characteristic_val ) / ( u * u + 0.25 );
 
+    if( t.real() < 0.0 || t.real() > 1000.0 ) return 0.0;
+
     return t.real();
 }
 
@@ -151,6 +124,61 @@ double european_call_bs(double initial_price, double maturity, double strike, do
     double d2 = d1 - vol_bs * std::sqrt(maturity);
 
     return initial_price * 0.5 * std::erfc(-d1 / std::sqrt(2.0)) - strike * std::exp(-r_bs * maturity) * 0.5 * std::erfc(-d2 / std::sqrt(2.0));
+}
+
+double european_call_bs_vega(double risk_free_rate, double maturity, double K, double S, double volatility)
+{
+    if (volatility <= 0.0 || maturity <= 0.0) return 0.0;
+
+    double d1 = (std::log(S / K) + (risk_free_rate + 0.5 * volatility * volatility) * maturity) / 
+                (volatility * std::sqrt(maturity));
+
+    double norm_pdf = (1.0 / std::sqrt(2.0 * M_PI)) * std::exp(-0.5 * d1 * d1);
+
+    return S * std::sqrt(maturity) * norm_pdf;
+}
+
+std::optional<double> newton_iv(
+    double time_to_maturity, 
+    double risk_free_rate, 
+    double strike, 
+    double price, 
+    double option_price)
+{
+    // 1. Fundamental arbitrage checks before spinning up the loop
+    double intrinsic_value = std::max(0.0, price - strike * std::exp(-risk_free_rate * time_to_maturity));
+    if (option_price < intrinsic_value || option_price >= price) {
+        return std::nullopt; 
+    }
+
+    double x0 = 0.2; // Initial volatility guess (20%)
+    constexpr double tolerance = 1e-7;
+    constexpr int maxiter = 50;
+
+    for(int i = 0; i < maxiter; ++i)
+    {
+        double f = european_call_bs(price, time_to_maturity, strike, risk_free_rate, x0) - option_price;
+        double v = european_call_bs_vega(risk_free_rate, time_to_maturity, strike, price, x0);
+        
+        // Guard against division by zero or extremely flat Vega regions
+        if (std::abs(v) < 1e-12) {
+            break;
+        }
+        
+        double x1 = x0 - f / v;
+        
+        if (x1 <= 0.0) {
+            x1 = 0.0001;
+        }
+
+        if (std::abs(x1 - x0) <= tolerance * std::abs(x1)) {
+            return x1;
+        }
+        
+        x0 = x1;
+    }
+    
+    return std::nullopt;
 }
 
 struct VrIntegrandContext
@@ -197,6 +225,7 @@ double european_call_sig(
     std::shared_ptr<ShuffleCache> cache
 ) {
     double k_0 = std::log(initial_price / strike);
+    gsl_set_error_handler_off();
     
     // Precompute squared signature
     Sig2D model_sig_squared = shuffle(model_signature, model_signature, trunc, cache);
@@ -215,7 +244,7 @@ double european_call_sig(
 	F.function = &gsl_integrand_non_vr_wrapper;
 	F.params = &ctx;
 
-	gsl_integration_qagiu(&F, 0.0, 0.1, 1e-7, integral_subdivs, w, &integral_result, &abs_error);
+	gsl_integration_qagiu(&F, 0.0, 0.1, 1e-6, integral_subdivs, w, &integral_result, &abs_error);
 	gsl_integration_workspace_free(w);
 
 	return initial_price - (strike / M_PI) * integral_result;
@@ -235,6 +264,7 @@ double european_call_sig_vr(
     std::shared_ptr<ShuffleCache> cache
 ) {
     double k_0 = std::log(initial_price / strike);
+    gsl_set_error_handler_off();
     
     // Precompute squared signature
     Sig2D model_sig_squared = shuffle(model_signature, model_signature, trunc, cache);

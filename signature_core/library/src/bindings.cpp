@@ -4,8 +4,6 @@
 #include <pybind11/operators.h>
 #include <pybind11/numpy.h>
 
-namespace py = pybind11;
-
 #include <memory>
 #include <string>
 #include <optional>
@@ -14,6 +12,8 @@ namespace py = pybind11;
 
 #include "signatures.hpp"
 #include "pricing.hpp"
+
+namespace py = pybind11;
 
 PYBIND11_MODULE(signature_core_cpp, m)
 {
@@ -27,8 +27,10 @@ PYBIND11_MODULE(signature_core_cpp, m)
             }
             
             // Construct the std::vector directly using iterator bounds over the NumPy memory buffer
-            std::vector<cdouble> values(static_cast<cdouble*>(buf.ptr), 
-                                        static_cast<cdouble*>(buf.ptr) + buf.size);
+            std::vector<cdouble> values(
+                static_cast<cdouble*>(buf.ptr), 
+                static_cast<cdouble*>(buf.ptr) + buf.size
+            );
             
             return std::make_unique<Sig2D>(order, values);
         }), py::arg("order"), py::arg("array"))
@@ -68,16 +70,20 @@ PYBIND11_MODULE(signature_core_cpp, m)
             return static_cast<Sig2D (*)(const Sig2D&, const Sig2D&, size_t)>(shuffle)(left, right, truncation);
         }
         return static_cast<Sig2D (*)(const Sig2D&, const Sig2D&, size_t, const std::shared_ptr<ShuffleCache>&)>(shuffle)(left, right, truncation, cache);
-    }, py::arg("left"), py::arg("right"), py::arg("truncation"), py::arg("cache") = py::none() );
+    }, py::arg("left"), py::arg("right"), py::arg("truncation"), py::arg("cache") = py::none()
+    );
 
     m.def("matmul", &matmul,
-          py::arg("left"), py::arg("right"), py::arg("truncation"));
+        py::arg("left"), py::arg("right"), py::arg("truncation")
+    );
 
     m.def("bracket", &bracket,
-          py::arg("left"), py::arg("right"));
+        py::arg("left"), py::arg("right")
+    );
 
     m.def("projection_on", &projection_on,
-          py::arg("sig"), py::arg("coordinates"), py::arg("coord_order"));
+        py::arg("sig"), py::arg("coordinates"), py::arg("coord_order")
+    );
 
     m.def("to_string", &to_string,
         py::arg("sig"));
@@ -134,5 +140,13 @@ PYBIND11_MODULE(signature_core_cpp, m)
         py::arg("r_bs"),
         py::arg("vol_bs"),
         py::arg("cache")
+    );
+
+    m.def("newton_iv", &newton_iv,
+        py::arg("time_to_maturity"), 
+        py::arg("risk_free_rate"), 
+        py::arg("strike"), 
+        py::arg("price"), 
+        py::arg("option_price")
     );
 }

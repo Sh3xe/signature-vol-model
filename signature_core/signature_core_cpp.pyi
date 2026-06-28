@@ -172,3 +172,6 @@ def european_call_sig_vr(
         The variance-reduced fair value price of the European call option.
     """
     ...
+
+def newton_iv(time_to_maturity, risk_free_rate, strike, price, option_price):
+    ...

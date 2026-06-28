@@ -1,4 +1,6 @@
 #include "signatures.hpp"
+#include "pricing.hpp"
+
 #include <iostream>
 #include <chrono>
 #include <bitset>
@@ -254,8 +256,19 @@ bool check_projection()
     return true;
 }
 
+void test_european_pricing()
+{
+    // (100, 0.058333333333333334, 70.0, <signature_core.signature_core_cpp.Sig2D object at 0x7f417b67e1f0>, -0.2, 1, 15, 20, <signature_core.signature_core_cpp.ShuffleCache object at 0x7f417b62e0f0>)
+    int trunc = 1;
+    auto model_sig = Sig2D(trunc, std::vector<cdouble>({0.2, -2.0, 1.0}));
+    auto cpp_cache = compute_shuffle_cache(trunc);
+    european_call_sig(100, 0.058333, 70.0, model_sig, -0.2, trunc, 15, 20, cpp_cache);
+}
+
 int main()
 {
+    test_european_pricing();
+
     if( check_accessors() )
     {
         std::cout << "Element accessors OK" << std::endl;

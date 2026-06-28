@@ -7,7 +7,7 @@ def european_call_bs(initial_price: float, maturity: float, strike: float, r: fl
     d2 = d1 - sigma * np.sqrt(maturity)
     return initial_price * scipy.stats.norm.cdf(d1) - strike * np.exp(-r * maturity) * scipy.stats.norm.cdf(d2)
 
-def european_call_sig(
+def european_call_sig_scipy(
     initial_price: float,
     maturity: float,
     strike: float,
@@ -49,10 +49,12 @@ def european_call_sig(
     else:
         # High-speed C++ compiled non-VR integrand
         def integrand(u):
-            return core.european_call_integrand(
+            result = core.european_call_integrand(
                 u, k_0, maturity, model_signature, model_sig_squared, 
                 rho, trunc, rk_subdivs, upper_bound, cache
             )
+
+            return max(0, result)
         
         integral, _ = scipy.integrate.quad(integrand, 0, np.inf, limit=integral_subdivs, epsabs=0.1)
         return initial_price - strike / np.pi * integral

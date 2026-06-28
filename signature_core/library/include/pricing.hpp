@@ -49,3 +49,11 @@ double european_call_sig_vr(
     double vol_bs,
     std::shared_ptr<ShuffleCache> cache
 );
+
+std::optional<double> newton_iv(
+    double time_to_maturity, 
+    double risk_free_rate, 
+    double strike, 
+    double price, 
+    double option_price
+);
